@@ -30,7 +30,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /* Routes */
+import ItemRouter from "./routes/item.routes";
 
+app.use("/item", ItemRouter);
 
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
