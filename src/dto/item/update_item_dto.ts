@@ -6,7 +6,7 @@ export class UpdateItemRequest {
         public companyId: number,
         public isActive: boolean,
         public itemName: string,
-        public unitName: string,
+        public unitId: number,
         public stock: number,
         public minStockToMaintain?: number,
         public defaultSellingPrice?: number,

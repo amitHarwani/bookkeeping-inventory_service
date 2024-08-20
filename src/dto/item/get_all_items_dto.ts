@@ -6,6 +6,7 @@ export class GetAllItemsRequest {
         public pageSize: number,
         public cursor?: {
             itemId: number,
+            updatedAt: Date
         },
         public query?: {
             isActive?: boolean;
@@ -18,7 +19,8 @@ export class GetAllItemsResponse {
     constructor(
         public items: Item[],
         public nextPageCursor: {
-            itemId: number
+            itemId: number,
+            updatedAt: Date
         }
     ){
     }

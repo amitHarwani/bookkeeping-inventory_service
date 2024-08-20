@@ -34,6 +34,10 @@ import ItemRouter from "./routes/item.routes";
 
 app.use("/item", ItemRouter);
 
+import UnitRouter from "./routes/unit.routes";
+
+app.use("/unit", UnitRouter);
+
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     if (err instanceof PostgresError) {

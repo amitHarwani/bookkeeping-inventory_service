@@ -7,7 +7,7 @@ export const getAllItemsValidator = () => {
         body("cursor").custom((value) => {
             if (
                 !value ||
-                (typeof value === "object" && typeof value?.itemId === "number")
+                (typeof value === "object" && typeof value?.itemId === "number" && value?.updatedAt)
             ) {
                 return true;
             }
@@ -37,12 +37,7 @@ export const addItemValidator = () => {
             .notEmpty()
             .withMessage("item name is required")
             .escape(),
-        body("unitName")
-            .isString()
-            .trim()
-            .notEmpty()
-            .withMessage("unit name is required")
-            .escape(),
+        body("unitId").isInt().withMessage("invalid unitId field"),
         body("stock").isNumeric().withMessage("invalid stock field"),
         body("defaultSellingPrice").custom((value) => {
             if (!value || typeof value === "number") {
@@ -76,12 +71,7 @@ export const updateItemValidator = () => {
             .notEmpty()
             .withMessage("item name is required")
             .escape(),
-        body("unitName")
-            .isString()
-            .trim()
-            .notEmpty()
-            .withMessage("unit name is required")
-            .escape(),
+        body("unitId").isInt().withMessage("invalid unitId field"),
         body("stock").isNumeric().withMessage("invalid stock field"),
         body("defaultSellingPrice").custom((value) => {
             if (!value || typeof value === "number") {

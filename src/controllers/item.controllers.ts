@@ -46,6 +46,7 @@ export const getAllItems = asyncHandler(
             whereClause = and(
                 and(
                     gt(items.itemId, body.cursor.itemId),
+                    gt(items.updatedAt, body.cursor.updatedAt),
                     eq(items.companyId, body.companyId)
                 ),
                 customQuery
@@ -67,7 +68,8 @@ export const getAllItems = asyncHandler(
                 items: allItems,
                 nextPageCursor: {
                     itemId: allItems[allItems.length - 1]
-                        ?.itemId /* Pass the last item id to get the next page */,
+                        ?.itemId /* Pass the last item id & Date to get the next page */,
+                    updatedAt: allItems[allItems.length - 1].updatedAt as Date,
                 },
             })
         );
@@ -77,30 +79,6 @@ export const getAllItems = asyncHandler(
 export const addItem = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const body = req.body as AddItemRequest;
-
-        /* Unit ID */
-        let unitId;
-
-        /* Finding the unit in units table */
-        const unitFound = await db
-            .select()
-            .from(units)
-            .where(
-                eq(sql`lower(${units.unitName})`, body.unitName.toLowerCase())
-            );
-
-        /* If unit is not found */
-        if (!unitFound.length) {
-            /* Adding the unit and storing the returned id in unitId variable */
-            const unitAdded = await db
-                .insert(units)
-                .values({ unitName: body.unitName })
-                .returning();
-            unitId = unitAdded[0].unitId;
-        } else {
-            /* Else: Unit ID is the id of the record found */
-            unitId = unitFound[0].unitId;
-        }
 
         /* Checking if item with duplicate name exists in the same company */
         const isItemExists = await db
@@ -130,7 +108,7 @@ export const addItem = asyncHandler(
             .insert(items)
             .values({
                 itemName: body.itemName,
-                unitId: unitId,
+                unitId: body.unitId,
                 companyId: body.companyId,
                 defaultSellingPrice: body?.defaultSellingPrice
                     ? body.defaultSellingPrice.toString()
@@ -142,12 +120,12 @@ export const addItem = asyncHandler(
                     ? body.minStockToMaintain
                     : null,
                 isActive: body.isActive,
-                stock: body.stock,
+                stock: body.stock.toString(),
             })
             .returning();
 
-        return res.status(200).json(
-            new ApiResponse<AddItemResponse>(200, {
+        return res.status(201).json(
+            new ApiResponse<AddItemResponse>(201, {
                 item: itemAdded[0],
                 message: "item added successfully",
             })
@@ -158,30 +136,6 @@ export const addItem = asyncHandler(
 export const updateItem = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const body = req.body as UpdateItemRequest;
-
-        /* Unit ID */
-        let unitId;
-
-        /* Finding the unit in units table */
-        const unitFound = await db
-            .select()
-            .from(units)
-            .where(
-                eq(sql`lower(${units.unitName})`, body.unitName.toLowerCase())
-            );
-
-        /* If unit is not found */
-        if (!unitFound.length) {
-            /* Adding the unit and storing the returned id in unitId variable */
-            const unitAdded = await db
-                .insert(units)
-                .values({ unitName: body.unitName })
-                .returning();
-            unitId = unitAdded[0].unitId;
-        } else {
-            /* Else: Unit ID is the id of the record found */
-            unitId = unitFound[0].unitId;
-        }
 
         /* Checking if item with duplicate name exists in the same company */
         const isItemExists = await db
@@ -211,7 +165,7 @@ export const updateItem = asyncHandler(
             .update(items)
             .set({
                 itemName: body.itemName,
-                unitId: unitId,
+                unitId: body.unitId,
                 defaultSellingPrice: body?.defaultSellingPrice
                     ? body.defaultSellingPrice.toString()
                     : null,
@@ -222,7 +176,8 @@ export const updateItem = asyncHandler(
                     ? body.minStockToMaintain
                     : null,
                 isActive: body.isActive,
-                stock: body.stock,
+                stock: body.stock.toString(),
+                updatedAt: new Date(),
             })
             .where(
                 and(
