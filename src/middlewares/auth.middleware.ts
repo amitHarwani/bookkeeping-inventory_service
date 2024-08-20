@@ -32,7 +32,7 @@ export const checkAccess = (featureId: number, companyId?: number | null) => {
     return asyncHandler(
         async (req: Request, res: Response, next: NextFunction) => {
             /* CompanyId either passed as parameter, or from request body */
-            const company = req.body.companyId ? req.body.companyId : companyId;
+            const company = req?.body?.companyId ? req.body.companyId : companyId;
 
             /* Request to user service, to check if user is authorized */
             const url = `${process.env.USER_SERVICE}${process.env.CHECK_ACCESS_PATH}`;

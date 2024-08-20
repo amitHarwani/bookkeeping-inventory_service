@@ -41,7 +41,7 @@ export const getAllItems = asyncHandler(
         let whereClause;
 
         /* If cursor is passed: Next page is being fetched */
-        if (body.cursor) {
+        if (body?.cursor) {
             /* ItemId should be greater than the last itemId fetched, and filtering by companyId, and the custom query */
             whereClause = and(
                 and(
@@ -63,14 +63,19 @@ export const getAllItems = asyncHandler(
             .limit(body.pageSize)
             .orderBy(asc(items.itemId));
 
+        let nextPageCursor;
+        const lastItem = allItems?.[allItems.length - 1]
+        if (lastItem) {
+            nextPageCursor = {
+                itemId: lastItem?.itemId /* Pass the last item id & Date to get the next page */,
+                updatedAt: lastItem.updatedAt as Date,
+            };
+        }
         return res.status(200).json(
             new ApiResponse<GetAllItemsResponse>(200, {
                 items: allItems,
-                nextPageCursor: {
-                    itemId: allItems[allItems.length - 1]
-                        ?.itemId /* Pass the last item id & Date to get the next page */,
-                    updatedAt: allItems[allItems.length - 1].updatedAt as Date,
-                },
+                nextPageCursor: nextPageCursor,
+                hasNextPage: nextPageCursor ? true : false
             })
         );
     }

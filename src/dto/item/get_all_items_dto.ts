@@ -18,7 +18,8 @@ export class GetAllItemsRequest {
 export class GetAllItemsResponse {
     constructor(
         public items: Item[],
-        public nextPageCursor: {
+        public hasNextPage: boolean,
+        public nextPageCursor?: {
             itemId: number,
             updatedAt: Date
         }
