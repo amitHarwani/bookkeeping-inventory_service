@@ -4,7 +4,7 @@ import {
     GetAllItemsRequest,
     GetAllItemsResponse,
 } from "../dto/item/get_all_items_dto";
-import { and, asc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { items, units } from "db_service";
 import { db } from "../db";
 import { ApiResponse } from "../utils/ApiResponse";
@@ -44,11 +44,14 @@ export const getAllItems = asyncHandler(
         if (body?.cursor) {
             /* ItemId should be greater than the last itemId fetched, and filtering by companyId, and the custom query */
             whereClause = and(
-                and(
-                    gt(items.itemId, body.cursor.itemId),
-                    gt(items.updatedAt, body.cursor.updatedAt),
-                    eq(items.companyId, body.companyId)
+                or(
+                    sql`${items.updatedAt} < ${body.cursor.updatedAt}`,
+                    and(
+                        sql`${items.updatedAt} = ${body.cursor.updatedAt}`,
+                        gt(items.itemId, body.cursor.itemId),
+                    )
                 ),
+                eq(items.companyId, body.companyId),
                 customQuery
             );
         } else {
@@ -61,7 +64,7 @@ export const getAllItems = asyncHandler(
             .from(items)
             .where(whereClause)
             .limit(body.pageSize)
-            .orderBy(asc(items.itemId));
+            .orderBy(desc(items.updatedAt), asc(items.itemId));
 
         let nextPageCursor;
         const lastItem = allItems?.[allItems.length - 1]
@@ -114,6 +117,7 @@ export const addItem = asyncHandler(
             .values({
                 itemName: body.itemName,
                 unitId: body.unitId,
+                unitName: body.unitName,
                 companyId: body.companyId,
                 defaultSellingPrice: body?.defaultSellingPrice
                     ? body.defaultSellingPrice.toString()
@@ -171,6 +175,7 @@ export const updateItem = asyncHandler(
             .set({
                 itemName: body.itemName,
                 unitId: body.unitId,
+                unitName: body.unitName,
                 defaultSellingPrice: body?.defaultSellingPrice
                     ? body.defaultSellingPrice.toString()
                     : null,
@@ -179,7 +184,7 @@ export const updateItem = asyncHandler(
                     : null,
                 minStockToMaintain: body?.minStockToMaintain
                     ? body.minStockToMaintain
-                    : null,
+                    : 0,
                 isActive: body.isActive,
                 stock: body.stock.toString(),
                 updatedAt: new Date(),
