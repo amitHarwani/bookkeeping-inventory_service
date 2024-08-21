@@ -123,7 +123,7 @@ export const addItem = asyncHandler(
                     : null,
                 minStockToMaintain: body?.minStockToMaintain
                     ? body.minStockToMaintain
-                    : null,
+                    : 0,
                 isActive: body.isActive,
                 stock: body.stock.toString(),
             })
