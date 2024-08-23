@@ -11,6 +11,7 @@ export class GetAllItemsRequest {
         public query?: {
             isActive?: boolean;
             isStockLow?: boolean;
+            itemNameSearchQuery?: string;
         }
     ) {}
 }

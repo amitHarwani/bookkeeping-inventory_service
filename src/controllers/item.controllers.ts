@@ -4,7 +4,7 @@ import {
     GetAllItemsRequest,
     GetAllItemsResponse,
 } from "../dto/item/get_all_items_dto";
-import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, lt, or, sql } from "drizzle-orm";
 import { items, units } from "db_service";
 import { db } from "../db";
 import { ApiResponse } from "../utils/ApiResponse";
@@ -25,6 +25,7 @@ export const getAllItems = asyncHandler(
         if (body.query) {
             let isActiveQuery;
             let isStockLowQuery;
+            let itemNameQuery;
             /* Is active query */
             if (typeof body.query?.isActive === "boolean") {
                 isActiveQuery = eq(items.isActive, body.query.isActive);
@@ -33,8 +34,13 @@ export const getAllItems = asyncHandler(
             if (typeof body.query?.isStockLow === "boolean") {
                 isStockLowQuery = lt(items.stock, items.minStockToMaintain);
             }
+
+            /* Item name search */
+            if(typeof body.query?.itemNameSearchQuery === "string" && body.query?.itemNameSearchQuery){
+                itemNameQuery = ilike(items.itemName, `%${body.query.itemNameSearchQuery}%`);
+            }
             /* Combining the queries */
-            customQuery = and(isActiveQuery, isStockLowQuery);
+            customQuery = and(isActiveQuery, isStockLowQuery, itemNameQuery);
         }
 
         /* Where clause */
@@ -42,7 +48,9 @@ export const getAllItems = asyncHandler(
 
         /* If cursor is passed: Next page is being fetched */
         if (body?.cursor) {
-            /* ItemId should be greater than the last itemId fetched, and filtering by companyId, and the custom query */
+            /* ItemId should be greater than the last itemId fetched, and updatedAt must be equal to the lastUpdatedAt fetched
+            or updatedAt should be less than the last updatedAt fetched, since item are ordered by updated at.
+            and filtering by companyId, and the custom query */
             whereClause = and(
                 or(
                     sql`${items.updatedAt} < ${body.cursor.updatedAt}`,

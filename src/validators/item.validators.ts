@@ -1,3 +1,4 @@
+import { query } from "express";
 import { body } from "express-validator";
 
 export const getAllItemsValidator = () => {
@@ -20,8 +21,12 @@ export const getAllItemsValidator = () => {
                 !value ||
                 (typeof value === "object" &&
                     (typeof value?.isActive === "boolean" ||
-                        typeof value?.isStockLow === "boolean"))
+                        typeof value?.isStockLow === "boolean" ||
+                        typeof value?.itemNameSearchQuery === "string"))
             ) {
+                return true;
+            }
+            else if(typeof value === "object"){
                 return true;
             }
             throw new Error("invalid query field");
