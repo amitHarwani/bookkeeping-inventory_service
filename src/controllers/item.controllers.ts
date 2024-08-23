@@ -14,6 +14,7 @@ import {
     UpdateItemRequest,
     UpdateItemResponse,
 } from "../dto/item/update_item_dto";
+import { GetItemResponse } from "../dto/item/get_item_dto";
 
 export const getAllItems = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -36,8 +37,14 @@ export const getAllItems = asyncHandler(
             }
 
             /* Item name search */
-            if(typeof body.query?.itemNameSearchQuery === "string" && body.query?.itemNameSearchQuery){
-                itemNameQuery = ilike(items.itemName, `%${body.query.itemNameSearchQuery}%`);
+            if (
+                typeof body.query?.itemNameSearchQuery === "string" &&
+                body.query?.itemNameSearchQuery
+            ) {
+                itemNameQuery = ilike(
+                    items.itemName,
+                    `%${body.query.itemNameSearchQuery}%`
+                );
             }
             /* Combining the queries */
             customQuery = and(isActiveQuery, isStockLowQuery, itemNameQuery);
@@ -56,7 +63,7 @@ export const getAllItems = asyncHandler(
                     sql`${items.updatedAt} < ${body.cursor.updatedAt}`,
                     and(
                         sql`${items.updatedAt} = ${body.cursor.updatedAt}`,
-                        gt(items.itemId, body.cursor.itemId),
+                        gt(items.itemId, body.cursor.itemId)
                     )
                 ),
                 eq(items.companyId, body.companyId),
@@ -75,7 +82,7 @@ export const getAllItems = asyncHandler(
             .orderBy(desc(items.updatedAt), asc(items.itemId));
 
         let nextPageCursor;
-        const lastItem = allItems?.[allItems.length - 1]
+        const lastItem = allItems?.[allItems.length - 1];
         if (lastItem) {
             nextPageCursor = {
                 itemId: lastItem?.itemId /* Pass the last item id & Date to get the next page */,
@@ -86,7 +93,33 @@ export const getAllItems = asyncHandler(
             new ApiResponse<GetAllItemsResponse>(200, {
                 items: allItems,
                 nextPageCursor: nextPageCursor,
-                hasNextPage: nextPageCursor ? true : false
+                hasNextPage: nextPageCursor ? true : false,
+            })
+        );
+    }
+);
+
+export const getItem = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        /* Item id and company id from request query  */
+        const itemId = Number(req.query.itemId);
+        const companyId = Number(req.query.companyId);
+
+        /* Finding the item from items table */
+        const itemFound = await db
+            .select()
+            .from(items)
+            .where(
+                and(eq(items.itemId, itemId), eq(items.companyId, companyId))
+            );
+
+        /* No items found error */
+        if (!itemFound.length) {
+            throw new ApiError(404, "item not found", []);
+        }
+        return res.status(200).json(
+            new ApiResponse<GetItemResponse>(200, {
+                item: itemFound[0],
             })
         );
     }

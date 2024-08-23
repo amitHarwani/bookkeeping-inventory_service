@@ -1,5 +1,4 @@
-import { query } from "express";
-import { body } from "express-validator";
+import { body, query } from "express-validator";
 
 export const getAllItemsValidator = () => {
     return [
@@ -33,6 +32,13 @@ export const getAllItemsValidator = () => {
         }),
     ];
 };
+
+export const getItemValidator = () => {
+    return [
+        query("itemId").isInt().withMessage("invalid item id"),
+        query("companyId").isInt().withMessage("invalid company id")
+    ]
+}
 
 export const addItemValidator = () => {
     return [
