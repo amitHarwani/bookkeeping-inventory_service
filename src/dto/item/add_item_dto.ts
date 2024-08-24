@@ -1,3 +1,4 @@
+import { PriceHistoryOfCurrentStockType } from "../../constants";
 import { Item } from "../../db";
 
 export class AddItemRequest {
@@ -11,6 +12,7 @@ export class AddItemRequest {
         public minStockToMaintain?: number,
         public defaultSellingPrice?: number,
         public defaultPurchasePrice?: number,
+        public priceHistoryOfCurrentStock?: Array<PriceHistoryOfCurrentStockType> | null;
     ) {}
 }
 

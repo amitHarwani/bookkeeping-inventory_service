@@ -24,8 +24,7 @@ export const getAllItemsValidator = () => {
                         typeof value?.itemNameSearchQuery === "string"))
             ) {
                 return true;
-            }
-            else if(typeof value === "object"){
+            } else if (typeof value === "object") {
                 return true;
             }
             throw new Error("invalid query field");
@@ -36,9 +35,9 @@ export const getAllItemsValidator = () => {
 export const getItemValidator = () => {
     return [
         query("itemId").isInt().withMessage("invalid item id"),
-        query("companyId").isInt().withMessage("invalid company id")
-    ]
-}
+        query("companyId").isInt().withMessage("invalid company id"),
+    ];
+};
 
 export const addItemValidator = () => {
     return [
@@ -58,6 +57,21 @@ export const addItemValidator = () => {
             .withMessage("unit name is required")
             .escape(),
         body("stock").isNumeric().withMessage("invalid stock field"),
+        body("priceHistoryOfCurrentStock").custom((value) => {
+            /* If value is not present: null or undefined, or a
+            single element is passed in array which is valid representing
+            the price of opening stock */
+            if (
+                !value ||
+                (Array.isArray(value) &&
+                    value.length === 1 &&
+                    typeof value[0].stock === "number" &&
+                    typeof value[0].purchasePrice === "number")
+            ) {
+                return true;
+            }
+            throw new Error("invalid price history of stock");
+        }),
         body("defaultSellingPrice").custom((value) => {
             if (!value || typeof value === "number") {
                 return true;
@@ -97,7 +111,6 @@ export const updateItemValidator = () => {
             .notEmpty()
             .withMessage("unit name is required")
             .escape(),
-        body("stock").isNumeric().withMessage("invalid stock field"),
         body("defaultSellingPrice").custom((value) => {
             if (!value || typeof value === "number") {
                 return true;

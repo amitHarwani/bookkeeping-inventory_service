@@ -171,6 +171,9 @@ export const addItem = asyncHandler(
                     : 0,
                 isActive: body.isActive,
                 stock: body.stock.toString(),
+                priceHistoryOfCurrentStock: body?.priceHistoryOfCurrentStock
+                    ? body.priceHistoryOfCurrentStock
+                    : null,
             })
             .returning();
 
@@ -227,7 +230,6 @@ export const updateItem = asyncHandler(
                     ? body.minStockToMaintain
                     : 0,
                 isActive: body.isActive,
-                stock: body.stock.toString(),
                 updatedAt: new Date(),
             })
             .where(

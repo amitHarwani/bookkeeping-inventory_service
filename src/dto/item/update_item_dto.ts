@@ -8,7 +8,6 @@ export class UpdateItemRequest {
         public itemName: string,
         public unitId: number,
         public unitName: string,
-        public stock: number,
         public minStockToMaintain?: number,
         public defaultSellingPrice?: number,
         public defaultPurchasePrice?: number,
