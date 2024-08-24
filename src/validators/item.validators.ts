@@ -1,4 +1,5 @@
 import { body, query } from "express-validator";
+import { ADJUSTMENT_TYPES } from "../constants";
 
 export const getAllItemsValidator = () => {
     return [
@@ -129,5 +130,47 @@ export const updateItemValidator = () => {
             }
             throw new Error("invalid minumum stock to maintain field");
         }),
+    ];
+};
+
+export const adjustItemValidator = () => {
+    return [
+        body("itemId").isInt().withMessage("invalid item id"),
+        body("companyId").isInt().withMessage("invalid company id"),
+        body("adjustmentType").custom((value) => {
+            const isValidType = Object.values(ADJUSTMENT_TYPES).find(
+                (type) => type == value
+            );
+            if (isValidType) {
+                return true;
+            }
+            throw new Error("invalid adjustment type");
+        }),
+        body("stockAdjusted").custom((value) => {
+            if(value && typeof value === "number" && value > 0){
+                return true;
+            }
+            throw new Error("invalid value for stockAdjusted field")
+        }),
+        body("pricePerUnit").custom((value, { req }) => {
+            /* If adjustmentType is add, pricePerUnit is required to be a number */
+            if (
+                req?.body?.adjustmentType === ADJUSTMENT_TYPES.ADD &&
+                value &&
+                typeof value === "number"
+            ) {
+                return true;
+            }
+            else if(req?.body?.adjustmentType === ADJUSTMENT_TYPES.SUBTRACT){
+                return true;
+            }
+            return false;
+        }),
+        body("reason")
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage("reason is required")
+            .escape(),
     ];
 };

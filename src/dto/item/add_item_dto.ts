@@ -12,7 +12,7 @@ export class AddItemRequest {
         public minStockToMaintain?: number,
         public defaultSellingPrice?: number,
         public defaultPurchasePrice?: number,
-        public priceHistoryOfCurrentStock?: Array<PriceHistoryOfCurrentStockType> | null;
+        public priceHistoryOfCurrentStock?: Array<PriceHistoryOfCurrentStockType> | null
     ) {}
 }
 

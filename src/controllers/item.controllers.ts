@@ -1,20 +1,26 @@
+import { itemAdjustments, items } from "db_service";
+import { and, asc, desc, eq, gt, ilike, lt, or, sql } from "drizzle-orm";
 import { NextFunction, Request, Response } from "express";
-import asyncHandler from "../utils/async_handler";
+import { ADJUSTMENT_TYPES } from "../constants";
+import { db } from "../db";
+import { AddItemRequest, AddItemResponse } from "../dto/item/add_item_dto";
+import {
+    AdjustItemRequest,
+    AdjustItemResponse,
+} from "../dto/item/adjust_item_dto";
 import {
     GetAllItemsRequest,
     GetAllItemsResponse,
 } from "../dto/item/get_all_items_dto";
-import { and, asc, desc, eq, gt, ilike, lt, or, sql } from "drizzle-orm";
-import { items, units } from "db_service";
-import { db } from "../db";
-import { ApiResponse } from "../utils/ApiResponse";
-import { AddItemRequest, AddItemResponse } from "../dto/item/add_item_dto";
-import { ApiError } from "../utils/ApiError";
+import { GetItemResponse } from "../dto/item/get_item_dto";
 import {
     UpdateItemRequest,
     UpdateItemResponse,
 } from "../dto/item/update_item_dto";
-import { GetItemResponse } from "../dto/item/get_item_dto";
+import { ApiError } from "../utils/ApiError";
+import { ApiResponse } from "../utils/ApiResponse";
+import asyncHandler from "../utils/async_handler";
+import { subtractPriceHistoryOfCurrentStock } from "../utils/item.helpers";
 
 export const getAllItems = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -246,5 +252,111 @@ export const updateItem = asyncHandler(
                 message: "item updated successfully",
             })
         );
+    }
+);
+
+export const adjustItem = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const body = req.body as AdjustItemRequest;
+
+        /* Finding item from DB */
+        const itemsFound = await db
+            .select()
+            .from(items)
+            .where(eq(items.itemId, body.itemId));
+
+        /* Item not found error */
+        if (!itemsFound.length) {
+            throw new ApiError(404, "item not found", []);
+        }
+
+        /* Updated item object */
+        let updatedItem = { ...itemsFound[0] };
+
+        /* Add type */
+        if (body.adjustmentType === ADJUSTMENT_TYPES.ADD) {
+            /* Adding stock, converting to string as numeric types are returned as string from DB */
+            updatedItem.stock = (
+                Number(updatedItem.stock) + body.stockAdjusted
+            ).toString();
+
+            /* If priceHistoryOfCurrentStock is present */
+            if (updatedItem.priceHistoryOfCurrentStock) {
+                /* Push to the price history the current added stock along with the price per unit */
+                updatedItem.priceHistoryOfCurrentStock.push({
+                    stock: body.stockAdjusted,
+                    purchasePrice: body.pricePerUnit,
+                });
+            } else {
+                /* Else store single element in priceHistoryOfStock */
+                updatedItem.priceHistoryOfCurrentStock = [
+                    {
+                        stock: body.stockAdjusted,
+                        purchasePrice: body.pricePerUnit,
+                    },
+                ];
+            }
+        } else {
+            /* If current available stock is less than the stock being subtracted */
+            if (Number(updatedItem.stock) - body.stockAdjusted < 0) {
+                throw new ApiError(
+                    409,
+                    "current stock is less than subtracted stock",
+                    []
+                );
+            }
+
+            /* Updating stock */
+            updatedItem.stock = (
+                Number(updatedItem.stock) - body.stockAdjusted
+            ).toString();
+
+            /* If price history of current stock exists, adjust and remove elements to subtract the stock */
+            if (updatedItem.priceHistoryOfCurrentStock) {
+                updatedItem.priceHistoryOfCurrentStock =
+                    subtractPriceHistoryOfCurrentStock(
+                        updatedItem.priceHistoryOfCurrentStock,
+                        body.stockAdjusted
+                    );
+            }
+        }
+
+        await db.transaction(async (tx) => {
+            /* Inserting into itemAdjustments */
+            await tx.insert(itemAdjustments).values({
+                companyId: body.companyId,
+                itemId: body.itemId,
+                adjustmentType: body.adjustmentType,
+                doneBy: req.user?.userId || "",
+                reason: body.reason,
+                stockAdjusted: body.stockAdjusted.toString(),
+                pricePerUnit: body?.pricePerUnit
+                    ? body.pricePerUnit.toString()
+                    : null,
+            });
+
+            /* Updating the item in DB */
+            const updatedItemInDB = await tx
+                .update(items)
+                .set({
+                    stock: updatedItem.stock,
+                    priceHistoryOfCurrentStock:
+                        updatedItem.priceHistoryOfCurrentStock,
+                })
+                .where(
+                    and(
+                        eq(items.itemId, updatedItem.itemId),
+                        eq(items.companyId, updatedItem.companyId)
+                    )
+                )
+                .returning();
+
+            return res.status(200).json(
+                new ApiResponse<AdjustItemResponse>(200, {
+                    item: updatedItemInDB[0],
+                    message: "item updated successfully",
+                })
+            );
+        });
     }
 );

@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response, Router } from "express";
 import {
     addItemValidator,
+    adjustItemValidator,
     getAllItemsValidator,
     getItemValidator,
     updateItemValidator,
@@ -8,6 +9,7 @@ import {
 import { validateInput } from "../validators";
 import {
     addItem,
+    adjustItem,
     getAllItems,
     getItem,
     updateItem,
@@ -49,4 +51,12 @@ router.put(
     checkAccess(8),
     updateItem
 );
+
+router.patch(
+    "/adjust-item",
+    adjustItemValidator(),
+    validateInput,
+    checkAccess(9),
+    adjustItem
+)
 export default router;
