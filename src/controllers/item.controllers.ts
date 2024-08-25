@@ -342,6 +342,7 @@ export const adjustItem = asyncHandler(
                     stock: updatedItem.stock,
                     priceHistoryOfCurrentStock:
                         updatedItem.priceHistoryOfCurrentStock,
+                    updatedAt: new Date()
                 })
                 .where(
                     and(
