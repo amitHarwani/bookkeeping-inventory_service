@@ -92,7 +92,7 @@ export const getAllItems = asyncHandler(
         if(body?.select){
 
             /* For each columnName passed */
-            body.select.forEach((col) => {
+            body.select?.forEach((col) => {
                 /* If the columnName is invalid, throw error */
                 if(!itemColumnKeys.includes(col)){
                     throw new ApiError(422, `invalid select column ${col}`, []);
