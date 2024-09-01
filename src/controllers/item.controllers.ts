@@ -89,7 +89,7 @@ export const getAllItems = asyncHandler(
         const itemColumnKeys = Object.keys(itemColumns);
 
         /* If select is passed */
-        if(body.select){
+        if(body?.select){
 
             /* For each columnName passed */
             body.select.forEach((col) => {
