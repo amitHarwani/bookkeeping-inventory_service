@@ -1,8 +1,8 @@
 import { itemAdjustments, items } from "db_service";
-import { and, asc, desc, eq, gt, ilike, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gt, ilike, lt, or, sql } from "drizzle-orm";
 import { NextFunction, Request, Response } from "express";
 import { ADJUSTMENT_TYPES } from "../constants";
-import { db } from "../db";
+import { db, Item } from "../db";
 import { AddItemRequest, AddItemResponse } from "../dto/item/add_item_dto";
 import {
     AdjustItemRequest,
@@ -79,9 +79,35 @@ export const getAllItems = asyncHandler(
             whereClause = customQuery;
         }
 
+        /* Default columns to select */
+        let cols = {itemId: items.itemId, updatedAt: items.updatedAt};
+
+        /* All Item Columns */
+        const itemColumns = getTableColumns(items);
+
+        /* All the column names  */
+        const itemColumnKeys = Object.keys(itemColumns);
+
+        /* If select is passed */
+        if(body.select){
+
+            /* For each columnName passed */
+            body.select.forEach((col) => {
+                /* If the columnName is invalid, throw error */
+                if(!itemColumnKeys.includes(col)){
+                    throw new ApiError(422, `invalid select column ${col}`, []);
+                }
+                /* Add in cols object */
+                cols = {...cols, [col]: items[col]};
+            })
+        }
+        else{
+            /* Select all columns  */
+            cols = itemColumns;
+        }
         /* Query */
         const allItems = await db
-            .select()
+            .select(cols)
             .from(items)
             .where(whereClause)
             .limit(body.pageSize)
@@ -96,7 +122,7 @@ export const getAllItems = asyncHandler(
             };
         }
         return res.status(200).json(
-            new ApiResponse<GetAllItemsResponse>(200, {
+            new ApiResponse<GetAllItemsResponse<typeof allItems>>(200, {
                 items: allItems,
                 nextPageCursor: nextPageCursor,
                 hasNextPage: nextPageCursor ? true : false,

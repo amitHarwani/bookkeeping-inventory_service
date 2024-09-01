@@ -12,13 +12,14 @@ export class GetAllItemsRequest {
             isActive?: boolean;
             isStockLow?: boolean;
             itemNameSearchQuery?: string;
-        }
+        },
+        public select?: [keyof Item]
     ) {}
 }
 
-export class GetAllItemsResponse {
+export class GetAllItemsResponse<T> {
     constructor(
-        public items: Item[],
+        public items: T,
         public hasNextPage: boolean,
         public nextPageCursor?: {
             itemId: number,
