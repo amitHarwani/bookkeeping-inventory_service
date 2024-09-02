@@ -457,32 +457,16 @@ export const recordPurchase = asyncHandler(
                         {
                             stock: purchaseItem.unitsPurchased,
                             purchasePrice: purchaseItem.pricePerUnit,
+                            purchaseId: body.purchaseId
                         },
                     ];
                 } else {
-                    /* Price history length */
-                    const priceHistoryLength =
-                        newPriceHistoryOfCurrentStock.length;
-
-                    /* If the lastitems purchasePrice is the same as the current pricePerUnit */
-                    if (
-                        newPriceHistoryOfCurrentStock[priceHistoryLength - 1]
-                            .purchasePrice == purchaseItem.pricePerUnit
-                    ) {
-                        /* Add stock to the last items purchase price */
-                        newPriceHistoryOfCurrentStock[
-                            priceHistoryLength - 1
-                        ].stock =
-                            newPriceHistoryOfCurrentStock[
-                                priceHistoryLength - 1
-                            ].stock + purchaseItem.unitsPurchased;
-                    } else {
-                        /* Else append a new priceHistory item */
-                        newPriceHistoryOfCurrentStock.push({
-                            stock: purchaseItem.unitsPurchased,
-                            purchasePrice: purchaseItem.pricePerUnit,
-                        });
-                    }
+                    /* Append to priceHistory */
+                    newPriceHistoryOfCurrentStock.push({
+                        stock: purchaseItem.unitsPurchased,
+                        purchasePrice: purchaseItem.pricePerUnit,
+                        purchaseId: body.purchaseId
+                    })
                 }
 
                 /* Update item in DB */

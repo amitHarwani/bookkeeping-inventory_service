@@ -177,6 +177,7 @@ export const adjustItemValidator = () => {
 
 export const recordPurchaseValidator = () => {
     return [
+        body("purchaseId").isInt().withMessage("invalid purchase id"),
         body("itemsPurchased").custom(value => {
             if(Array.isArray(value)){
                 return true;

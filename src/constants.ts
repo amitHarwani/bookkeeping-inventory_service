@@ -1,7 +1,8 @@
 
 export interface PriceHistoryOfCurrentStockType {
     stock: number,
-    purchasePrice: number
+    purchasePrice: number,
+    purchaseId?: number
 }
 
 export enum ADJUSTMENT_TYPES {
