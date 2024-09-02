@@ -4,6 +4,7 @@ import {
     adjustItemValidator,
     getAllItemsValidator,
     getItemValidator,
+    recordPurchaseValidator,
     updateItemValidator,
 } from "../validators/item.validators";
 import { validateInput } from "../validators";
@@ -12,6 +13,7 @@ import {
     adjustItem,
     getAllItems,
     getItem,
+    recordPurchase,
     updateItem,
 } from "../controllers/item.controllers";
 import { checkAccess } from "../middlewares/auth.middleware";
@@ -58,5 +60,12 @@ router.patch(
     validateInput,
     checkAccess(9),
     adjustItem
+)
+
+router.patch(
+    "/record-purchase",
+    recordPurchaseValidator(),
+    validateInput,
+    recordPurchase
 )
 export default router;

@@ -164,7 +164,7 @@ export const adjustItemValidator = () => {
             else if(req?.body?.adjustmentType === ADJUSTMENT_TYPES.SUBTRACT){
                 return true;
             }
-            return false;
+            throw new Error("price per unit is request for ADD adjustment");
         }),
         body("reason")
             .isString()
@@ -174,3 +174,14 @@ export const adjustItemValidator = () => {
             .escape(),
     ];
 };
+
+export const recordPurchaseValidator = () => {
+    return [
+        body("itemsPurchased").custom(value => {
+            if(Array.isArray(value)){
+                return true;
+            }
+            throw new Error("invalid field itemsPurchased");
+        }) 
+    ]
+}

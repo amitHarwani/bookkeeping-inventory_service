@@ -1,7 +1,18 @@
 import { itemAdjustments, items } from "db_service";
-import { and, asc, desc, eq, getTableColumns, gt, ilike, lt, or, sql } from "drizzle-orm";
+import {
+    and,
+    asc,
+    desc,
+    eq,
+    getTableColumns,
+    gt,
+    ilike,
+    lt,
+    or,
+    sql,
+} from "drizzle-orm";
 import { NextFunction, Request, Response } from "express";
-import { ADJUSTMENT_TYPES } from "../constants";
+import { ADJUSTMENT_TYPES, PriceHistoryOfCurrentStockType } from "../constants";
 import { db, Item } from "../db";
 import { AddItemRequest, AddItemResponse } from "../dto/item/add_item_dto";
 import {
@@ -21,6 +32,10 @@ import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import asyncHandler from "../utils/async_handler";
 import { subtractPriceHistoryOfCurrentStock } from "../utils/item.helpers";
+import {
+    RecordPurchaseRequest,
+    RecordPurchaseResponse,
+} from "../dto/item/record_purchase_dto";
 
 export const getAllItems = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -80,7 +95,7 @@ export const getAllItems = asyncHandler(
         }
 
         /* Default columns to select */
-        let cols = {itemId: items.itemId, updatedAt: items.updatedAt};
+        let cols = { itemId: items.itemId, updatedAt: items.updatedAt };
 
         /* All Item Columns */
         const itemColumns = getTableColumns(items);
@@ -89,19 +104,17 @@ export const getAllItems = asyncHandler(
         const itemColumnKeys = Object.keys(itemColumns);
 
         /* If select is passed */
-        if(body?.select){
-
+        if (body?.select) {
             /* For each columnName passed */
             body.select?.forEach((col) => {
                 /* If the columnName is invalid, throw error */
-                if(!itemColumnKeys.includes(col)){
+                if (!itemColumnKeys.includes(col)) {
                     throw new ApiError(422, `invalid select column ${col}`, []);
                 }
                 /* Add in cols object */
-                cols = {...cols, [col]: items[col]};
-            })
-        }
-        else{
+                cols = { ...cols, [col]: items[col] };
+            });
+        } else {
             /* Select all columns  */
             cols = itemColumns;
         }
@@ -368,7 +381,7 @@ export const adjustItem = asyncHandler(
                     stock: updatedItem.stock,
                     priceHistoryOfCurrentStock:
                         updatedItem.priceHistoryOfCurrentStock,
-                    updatedAt: new Date()
+                    updatedAt: new Date(),
                 })
                 .where(
                     and(
@@ -382,6 +395,114 @@ export const adjustItem = asyncHandler(
                 new ApiResponse<AdjustItemResponse>(200, {
                     item: updatedItemInDB[0],
                     message: "item updated successfully",
+                })
+            );
+        });
+    }
+);
+
+export const recordPurchase = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const body = req.body as RecordPurchaseRequest;
+
+        await db.transaction(async (tx) => {
+            /* For each purchase item */
+            for (let purchaseItem of body.itemsPurchased) {
+                /* Invalid values  */
+                if (
+                    !purchaseItem.itemId ||
+                    !purchaseItem.companyId ||
+                    !purchaseItem.pricePerUnit ||
+                    !purchaseItem.unitsPurchased
+                ) {
+                    throw new ApiError(422, "invalid items purchased list", []);
+                }
+
+                /* Getting the item  */
+                const itemsFound = await tx
+                    .select()
+                    .from(items)
+                    .where(
+                        and(
+                            eq(items.itemId, purchaseItem.itemId),
+                            eq(items.companyId, purchaseItem.companyId)
+                        )
+                    );
+
+                /* Item not found */
+                if (!itemsFound.length) {
+                    throw new ApiError(
+                        404,
+                        `invalid item with id: ${purchaseItem.itemId}`,
+                        []
+                    );
+                }
+
+                /* Item to be updated */
+                const item = itemsFound[0];
+
+                /* New stock */
+                const newStock =
+                    Number(item.stock) + purchaseItem.unitsPurchased;
+
+                /* New price history */
+                let newPriceHistoryOfCurrentStock:
+                    | PriceHistoryOfCurrentStockType[]
+                    | null =
+                    item.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[];
+
+                /* If price history does not exist, add the first element */
+                if (!newPriceHistoryOfCurrentStock) {
+                    newPriceHistoryOfCurrentStock = [
+                        {
+                            stock: purchaseItem.unitsPurchased,
+                            purchasePrice: purchaseItem.pricePerUnit,
+                        },
+                    ];
+                } else {
+                    /* Price history length */
+                    const priceHistoryLength =
+                        newPriceHistoryOfCurrentStock.length;
+
+                    /* If the lastitems purchasePrice is the same as the current pricePerUnit */
+                    if (
+                        newPriceHistoryOfCurrentStock[priceHistoryLength - 1]
+                            .purchasePrice == purchaseItem.pricePerUnit
+                    ) {
+                        /* Add stock to the last items purchase price */
+                        newPriceHistoryOfCurrentStock[
+                            priceHistoryLength - 1
+                        ].stock =
+                            newPriceHistoryOfCurrentStock[
+                                priceHistoryLength - 1
+                            ].stock + purchaseItem.unitsPurchased;
+                    } else {
+                        /* Else append a new priceHistory item */
+                        newPriceHistoryOfCurrentStock.push({
+                            stock: purchaseItem.unitsPurchased,
+                            purchasePrice: purchaseItem.pricePerUnit,
+                        });
+                    }
+                }
+
+                /* Update item in DB */
+                await tx
+                    .update(items)
+                    .set({
+                        priceHistoryOfCurrentStock: newPriceHistoryOfCurrentStock,
+                        stock: newStock.toString()
+                    })
+                    .where(
+                        and(
+                            eq(items.itemId, purchaseItem.itemId),
+                            eq(items.companyId, purchaseItem.companyId)
+                        )
+                    );
+            }
+
+            return res.status(200).json(
+                new ApiResponse<RecordPurchaseResponse>(200, {
+                    message: "items stock updated successfully",
                 })
             );
         });
