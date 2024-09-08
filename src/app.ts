@@ -38,8 +38,14 @@ import UnitRouter from "./routes/unit.routes";
 
 app.use("/unit", UnitRouter);
 
+import InvoiceUpdatesRouter from "./routes/invoiceupdate.routes";
+
+app.use("/invoice-update", InvoiceUpdatesRouter);
+
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    logger.error(JSON.stringify(err));
+    
     if (err instanceof PostgresError) {
         return res.status(500).json({
             stausCode: 500,

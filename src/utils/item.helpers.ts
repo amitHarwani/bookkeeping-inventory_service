@@ -12,7 +12,7 @@ export const subtractPriceHistoryOfCurrentStock = (
     let stockLeft = stockToSubtract;
 
     /* While stock left is not 0 */
-    while (stockLeft != 0) {
+    while (stockLeft != 0 && updatedPriceHistoryOfStock.length) {
         /* If the first element's stock is greater than the stock left */
         if (updatedPriceHistoryOfStock[0]?.stock > stockLeft) {
             /* Subtract from first element an break, all the stock is subtracted */

@@ -147,10 +147,10 @@ export const adjustItemValidator = () => {
             throw new Error("invalid adjustment type");
         }),
         body("stockAdjusted").custom((value) => {
-            if(value && typeof value === "number" && value > 0){
+            if (value && typeof value === "number" && value > 0) {
                 return true;
             }
-            throw new Error("invalid value for stockAdjusted field")
+            throw new Error("invalid value for stockAdjusted field");
         }),
         body("pricePerUnit").custom((value, { req }) => {
             /* If adjustmentType is add, pricePerUnit is required to be a number */
@@ -160,8 +160,9 @@ export const adjustItemValidator = () => {
                 typeof value === "number"
             ) {
                 return true;
-            }
-            else if(req?.body?.adjustmentType === ADJUSTMENT_TYPES.SUBTRACT){
+            } else if (
+                req?.body?.adjustmentType === ADJUSTMENT_TYPES.SUBTRACT
+            ) {
                 return true;
             }
             throw new Error("price per unit is request for ADD adjustment");
@@ -174,15 +175,3 @@ export const adjustItemValidator = () => {
             .escape(),
     ];
 };
-
-export const recordPurchaseValidator = () => {
-    return [
-        body("purchaseId").isInt().withMessage("invalid purchase id"),
-        body("itemsPurchased").custom(value => {
-            if(Array.isArray(value)){
-                return true;
-            }
-            throw new Error("invalid field itemsPurchased");
-        }) 
-    ]
-}

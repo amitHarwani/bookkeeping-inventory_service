@@ -1,22 +1,20 @@
 import { NextFunction, Request, Response, Router } from "express";
 import {
-    addItemValidator,
-    adjustItemValidator,
-    getAllItemsValidator,
-    getItemValidator,
-    recordPurchaseValidator,
-    updateItemValidator,
-} from "../validators/item.validators";
-import { validateInput } from "../validators";
-import {
     addItem,
     adjustItem,
     getAllItems,
     getItem,
-    recordPurchase,
-    updateItem,
+    updateItem
 } from "../controllers/item.controllers";
 import { checkAccess } from "../middlewares/auth.middleware";
+import { validateInput } from "../validators";
+import {
+    addItemValidator,
+    adjustItemValidator,
+    getAllItemsValidator,
+    getItemValidator,
+    updateItemValidator
+} from "../validators/item.validators";
 
 const router = Router();
 
@@ -60,12 +58,5 @@ router.patch(
     validateInput,
     checkAccess(9),
     adjustItem
-)
-
-router.patch(
-    "/record-purchase",
-    recordPurchaseValidator(),
-    validateInput,
-    recordPurchase
-)
+);
 export default router;
