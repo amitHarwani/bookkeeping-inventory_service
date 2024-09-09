@@ -118,4 +118,182 @@ export class PriceHistoryUpdateHelper {
             });
         }
     };
+
+    recordPurchaseUpdate = (
+        purchaseId: number,
+        oldItem: ItemTypeForRecordingPurchase,
+        newItem: ItemTypeForRecordingPurchase
+    ) => {
+        /* If price per unit, and units purchased are same, there is no need to update anything */
+        if (
+            oldItem.pricePerUnit == newItem.pricePerUnit &&
+            oldItem.unitsPurchased == newItem.unitsPurchased
+        ) {
+            return;
+        }
+
+        if (!Array.isArray(this.priceHistory)) {
+            this.priceHistory = [];
+        }
+        /* Finding the purchaseId in price history */
+        const purchaseHistoryIndex = this.priceHistory.findIndex(
+            (history) => history.purchaseId == purchaseId
+        );
+
+        /* Purchase History object */
+        const purchaseHistory = this.priceHistory?.[purchaseHistoryIndex];
+
+        let newPurchasePricesForSoldItems = [];
+
+        /* If purchase history is not found or if the stocks don't match (Some items from this purchase are sold or adjusted) */
+        if (
+            purchaseHistoryIndex === -1 ||
+            purchaseHistory?.stock != oldItem.unitsPurchased
+        ) {
+            /* Current stock in purchaseHistory, or 0, if purchaseHistory is not there */
+            const currentPurchaseHistoryStock = purchaseHistory?.stock || 0;
+
+            /* Num of units sold or adjusted */
+            const numOfUnitsSoldOrAdjusted =
+                oldItem.unitsPurchased - currentPurchaseHistoryStock;
+
+            /* Updating old purchase history */
+            if (purchaseHistoryIndex != -1) {
+                this.priceHistory[purchaseHistoryIndex] = {
+                    purchasePrice: newItem.pricePerUnit,
+                    stock: newItem.unitsPurchased,
+                    purchaseId: purchaseId,
+                };
+            } else {
+                /* Adding the new purchase to priceHistory */
+                this.priceHistory.push({
+                    purchasePrice: newItem.pricePerUnit,
+                    stock: newItem.unitsPurchased,
+                    purchaseId: purchaseId,
+                });
+            }
+
+            /* Adjusting the sold/adjusted units from purchaseHistories */
+            let counter = numOfUnitsSoldOrAdjusted;
+
+            /* While there are units to be adjusted and priceHistory is not empty */
+            while (counter > 0 && this.priceHistory.length) {
+                /* If the first priceHistories stock is > counter, all units can be adjusted from this priceHistory */
+                if (this.priceHistory[0].stock > counter) {
+                    /* Pushing to newPurchasePrices list */
+                    newPurchasePricesForSoldItems.push({
+                        purchaseId: this.priceHistory[0]?.purchaseId || null,
+                        units: counter, // All units adjusted from first priceHistory
+                        pricePerUnit: this.priceHistory[0].purchasePrice,
+                    });
+
+                    /* Subtracting stock from priceHistory */
+                    this.priceHistory[0].stock -= counter;
+
+                    /* Setting counter to 0: Remaining units to be adjusted */
+                    counter = 0;
+                    break;
+                } else {
+                    /* Pushing to newPurchasePrices list */
+                    newPurchasePricesForSoldItems.push({
+                        purchaseId: this.priceHistory[0]?.purchaseId || null,
+                        units: this.priceHistory[0].stock,
+                        pricePerUnit: this.priceHistory[0].purchasePrice,
+                    });
+
+                    /* Subtracting counter by the stock available in this priceHistory, and removing the item from priceHistory */
+                    counter -= this.priceHistory[0].stock;
+                    this.priceHistory.shift();
+                }
+            }
+        } else {
+            this.priceHistory[purchaseHistoryIndex] = {
+                purchasePrice: newItem.pricePerUnit,
+                stock: newItem.unitsPurchased,
+                purchaseId: purchaseId,
+            };
+        }
+
+        /* Overall Stock = Current Overall - old Purchased Stock + new Purchase Stock */
+        this.stock =
+            this.stock - oldItem.unitsPurchased + newItem.unitsPurchased;
+
+        return newPurchasePricesForSoldItems;
+    };
+
+    recordPurchaseUpdateItemDeletion = (
+        purchaseId: number,
+        purchaseItem: ItemTypeForRecordingPurchase
+    ) => {
+        if (!Array.isArray(this.priceHistory)) {
+            this.priceHistory = [];
+        }
+        /* Finding the purchaseId in price history */
+        const purchaseHistoryIndex = this.priceHistory.findIndex(
+            (history) => history.purchaseId == purchaseId
+        );
+
+        /* Purchase History object */
+        const purchaseHistory = this.priceHistory?.[purchaseHistoryIndex];
+
+        let newPurchasePricesForSoldItems = [];
+
+        if (
+            purchaseHistoryIndex == -1 ||
+            purchaseItem.unitsPurchased != purchaseHistory?.stock
+        ) {
+            /* Current stock in purchaseHistory, or 0, if purchaseHistory is not there */
+            const currentPurchaseHistoryStock = purchaseHistory?.stock || 0;
+
+            /* Num of units sold or adjusted */
+            const numOfUnitsSoldOrAdjusted =
+                purchaseItem.unitsPurchased - currentPurchaseHistoryStock;
+
+            /* Removing the removed purchaseItem from price history */
+            if (purchaseHistoryIndex != -1) {
+                this.priceHistory.splice(purchaseHistoryIndex, 1);
+            }
+
+            /* Adjusting the sold/adjusted units from priceHistory */
+            let counter = numOfUnitsSoldOrAdjusted;
+
+            /* While there are units to be adjusted and priceHistory is not empty */
+            while (counter > 0 && this.priceHistory.length) {
+                /* If the first priceHistories stock is > counter, all units can be adjusted from this priceHistory */
+                if (this.priceHistory[0].stock > counter) {
+                    /* Pushing to newPurchasePrices list */
+                    newPurchasePricesForSoldItems.push({
+                        purchaseId: this.priceHistory[0]?.purchaseId || null,
+                        units: counter, // All units adjusted from first priceHistory
+                        pricePerUnit: this.priceHistory[0].purchasePrice,
+                    });
+
+                    /* Subtracting stock from priceHistory */
+                    this.priceHistory[0].stock -= counter;
+
+                    /* Setting counter to 0: Remaining units to be adjusted */
+                    counter = 0;
+                    break;
+                } else {
+                    /* Pushing to newPurchasePrices list */
+                    newPurchasePricesForSoldItems.push({
+                        purchaseId: this.priceHistory[0]?.purchaseId || null,
+                        units: this.priceHistory[0].stock,
+                        pricePerUnit: this.priceHistory[0].purchasePrice,
+                    });
+
+                    /* Subtracting counter by the stock available in this priceHistory, and removing the item from priceHistory */
+                    counter -= this.priceHistory[0].stock;
+                    this.priceHistory.shift();
+                }
+            }
+        } else {
+            this.priceHistory.splice(purchaseHistoryIndex, 1);
+        }
+
+        /* Overall Stock = Current Overall - old Purchased Stock */
+        this.stock = this.stock - purchaseItem.unitsPurchased;
+
+        return newPurchasePricesForSoldItems;
+    };
 }

@@ -1,6 +1,6 @@
 import { items, saleItemProfits } from "db_service";
 import { db, DBType, Item } from "../db";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { ApiError } from "../utils/ApiError";
 import asyncHandler from "../utils/async_handler";
 import { NextFunction, Request, Response } from "express";
@@ -25,6 +25,7 @@ import {
     PostgresJsTransaction,
 } from "drizzle-orm/postgres-js";
 import { PgTransaction } from "drizzle-orm/pg-core";
+import { RecordPurchaseUpdateRequest } from "../dto/invoiceupdate/record_purchase_update_dto";
 
 const findItem = async (
     tx: DBType,
@@ -136,11 +137,11 @@ const calculateSaleItemProfit = (
     return (sellingPricePerUnit * unitsSold) - totalCost;
 };
 
-const adjustSaleItemsForRecordingPurchase = async (
+export const adjustSaleItemsForRecordingPurchase = async (
     tx: DBType,
     companyId: number,
     purchaseItem: ItemTypeForRecordingPurchase,
-    purchaseId: number
+    purchaseId: number | null
 ) => {
     try {
         /* Finding sale items where totalProfit is null, to adjust them with the new purchase */
@@ -191,7 +192,9 @@ const adjustSaleItemsForRecordingPurchase = async (
             if (!Array.isArray(saleItem?.purchaseIds)) {
                 saleItem.purchaseIds = [];
             }
-            saleItem.purchaseIds.push(purchaseId);
+            if(purchaseId){
+                saleItem.purchaseIds.push(purchaseId);
+            }
 
             /* Adding to costOfItems array in saleItem */
             if (!Array.isArray(saleItem?.costOfItems)) {
@@ -300,108 +303,225 @@ export const recordPurchase = asyncHandler(
     }
 );
 
-// export const recordPurchaseUpdate = asyncHandler(
-//     async (req: Request, res: Response, next: NextFunction) => {
-//         const body = req.body as RecordPurchaseUpdateRequest;
+const adjustSaleItemsForRecordingPurchaseUpdate = async (
+    tx: DBType,
+    purchaseId: number,
+    companyId: number,
+    newPurchasePricesForSoldItems: Array<{
+        purchaseId: number | null;
+        units: number;
+        pricePerUnit: number;
+    }>
+) => {
+    try {
+        /* Finding sale items which use the purchaseId passed */
+        const saleItemsWithSamePurchaseId = await tx
+            .select()
+            .from(saleItemProfits)
+            .where(
+                and(
+                    sql`${purchaseId} = ANY(${saleItemProfits.purchaseIds})`,
+                    eq(saleItemProfits.companyId, companyId)
+                )
+            );
 
-//         await db.transaction(async (tx) => {
-//             /* Item Additions */
-//             if (Array.isArray(body?.items?.itemsAdded)) {
-//                 await recordPurchaseAdditions(
-//                     tx,
-//                     body.items.itemsAdded,
-//                     body.purchaseId
-//                 );
-//             }
+        for (let saleItem of saleItemsWithSamePurchaseId) {
+            /* Finding the purchaseId */
+            const costOfItems =
+                saleItem.costOfItems as CostOfItemsForSaleItemsType[];
 
-//             /* Item Updates */
-//             if (Array.isArray(body?.items?.itemsUpdated)) {
-//                 for (const itemUpdate of body.items.itemsUpdated) {
-//                     const oldItem = itemUpdate.old;
-//                     const newItem = itemUpdate.new;
+            /* Index of the purchaseId in costOfItems list */
+            const costPurchaseIndex = costOfItems.findIndex(
+                (costItem) => costItem.purchaseId == purchaseId
+            );
 
-//                     /* Finding the item in DB */
-//                     const itemFound = await tx
-//                         .select()
-//                         .from(items)
-//                         .where(
-//                             and(
-//                                 eq(items.itemId, oldItem.itemId),
-//                                 eq(items.companyId, oldItem.companyId)
-//                             )
-//                         );
-//                     /* Item Not Found */
-//                     if (!itemFound.length) {
-//                         throw new ApiError(
-//                             404,
-//                             `invalid item with id: ${oldItem.itemId}`,
-//                             []
-//                         );
-//                     }
-//                     /* Item */
-//                     const item = itemFound[0];
+            /* Purchase Object in costOfItems */
+            const costPurchaseObj = costOfItems[costPurchaseIndex];
 
-//                     /* Price History array of the item */
-//                     const itemPriceHistory =
-//                         item.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[];
+            /* Removing the purchaseObject from costOfItems */
+            costOfItems.splice(costPurchaseIndex, 1);
 
-//                     /* Finding in price history array the purchase */
-//                     const purchasePriceObjIndex = itemPriceHistory.findIndex(
-//                         (history) => history.purchaseId == body.purchaseId
-//                     );
+            /* Removing the purchaseId from purchaseIds list */
+            const purchaseIdIndex = saleItem.purchaseIds?.findIndex(
+                (id) => id == purchaseId
+            );
+            if (purchaseIdIndex && purchaseIdIndex != -1) {
+                saleItem.purchaseIds?.splice(purchaseIdIndex, 1);
+            }
 
-//                     /* If the purchase is found in price history */
-//                     if (purchasePriceObjIndex != -1) {
-//                         /* Purchase price object */
-//                         const purchasePriceObj =
-//                             itemPriceHistory[purchasePriceObjIndex];
+            /* Counter to adjust from newPurchasePrices */
+            let counter = costPurchaseObj.units;
 
-//                         /* Stock === old purchase, No sold or adjusted items */
-//                         if (purchasePriceObj.stock == oldItem.unitsPurchased) {
-//                             /* Direct Update */
-//                             purchasePriceObj.stock = newItem.unitsPurchased;
-//                             purchasePriceObj.purchasePrice =
-//                                 newItem.pricePerUnit;
+            /* Looping to adjust the units from the purchaseId */
+            while (counter > 0 && newPurchasePricesForSoldItems.length) {
+                if (newPurchasePricesForSoldItems[0].units > counter) {
+                    costOfItems.push({
+                        purchaseId:
+                            newPurchasePricesForSoldItems[0]?.purchaseId ||
+                            null,
+                        pricePerUnit:
+                            newPurchasePricesForSoldItems[0].pricePerUnit,
+                        units: counter,
+                    });
+                    if (newPurchasePricesForSoldItems[0]?.purchaseId) {
+                        /* Pushing purchase id */
+                        saleItem.purchaseIds?.push(
+                            newPurchasePricesForSoldItems[0]?.purchaseId
+                        );
+                    }
+                    newPurchasePricesForSoldItems[0].units -= counter;
 
-//                             item.stock = (
-//                                 Number(item.stock) -
-//                                 oldItem.unitsPurchased +
-//                                 newItem.unitsPurchased
-//                             ).toString();
+                    counter = 0;
+                    break;
+                } else {
+                    costOfItems.push({
+                        purchaseId:
+                            newPurchasePricesForSoldItems[0]?.purchaseId ||
+                            null,
+                        pricePerUnit:
+                            newPurchasePricesForSoldItems[0].pricePerUnit,
+                        units: newPurchasePricesForSoldItems[0].units,
+                    });
+                    if (newPurchasePricesForSoldItems[0]?.purchaseId) {
+                        /* Pushing purchase id */
+                        saleItem.purchaseIds?.push(
+                            newPurchasePricesForSoldItems[0]?.purchaseId
+                        );
+                    }
+                    counter -= newPurchasePricesForSoldItems[0].units;
 
-//                             itemPriceHistory[purchasePriceObjIndex] =
-//                                 purchasePriceObj;
-//                             /* Update Item Here */
-//                             await tx
-//                                 .update(items)
-//                                 .set({
-//                                     stock: item.stock,
-//                                     priceHistoryOfCurrentStock:
-//                                         itemPriceHistory,
-//                                 })
-//                                 .where(
-//                                     and(
-//                                         eq(items.itemId, item.itemId),
-//                                         eq(items.companyId, item.companyId)
-//                                     )
-//                                 );
-//                         } else {
-//                             /* Some items were sold and this must be the first item as items are adjusted/sold in FIFO  */
-//                             const numOfItemsSoldOrAdjusted =
-//                                 oldItem.unitsPurchased - purchasePriceObj.stock;
+                    newPurchasePricesForSoldItems.shift();
+                }
+            }
 
-//                             let counter = numOfItemsSoldOrAdjusted;
-//                             while (
-//                                 counter != 0 &&
-//                                 itemPriceHistory.length > 1
-//                             ) {
-//                                 itemPriceHistory[1].stock;
-//                             }
-//                         }
-//                     } else {
-//                     }
-//                 }
-//             }
-//         });
-//     }
-// );
+            saleItem.costOfItems = costOfItems;
+
+            /* Remaining Units = Old Remaining Units + counter (units left if any while adjusting the purchase) */
+            const updatedRemainingUnitsForProfitCalc =
+                Number(saleItem.remainingUnitsForProfitCalc) + counter;
+
+            /* If no units are remaining for profit calc: Calculate total profit */
+            if (updatedRemainingUnitsForProfitCalc == 0) {
+                saleItem.totalProfit = calculateSaleItemProfit(
+                    saleItem.costOfItems as CostOfItemsForSaleItemsType[],
+                    Number(saleItem.pricePerUnit),
+                    Number(saleItem.unitsSold)
+                ).toString();
+            } else {
+                saleItem.totalProfit = null;
+            }
+
+            saleItem.remainingUnitsForProfitCalc =
+                updatedRemainingUnitsForProfitCalc.toString();
+
+            /* Updating saleItemProfits table */
+            await tx
+                .update(saleItemProfits)
+                .set({
+                    costOfItems: saleItem.costOfItems,
+                    remainingUnitsForProfitCalc:
+                        saleItem.remainingUnitsForProfitCalc,
+                    totalProfit: saleItem.totalProfit,
+                    purchaseIds: saleItem.purchaseIds,
+                })
+                .where(
+                    and(
+                        eq(saleItemProfits.saleId, saleItem.saleId as number),
+                        eq(saleItemProfits.itemId, saleItem.itemId as number)
+                    )
+                );
+        }
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const recordPurchaseUpdate = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const body = req.body as RecordPurchaseUpdateRequest;
+
+        await db.transaction(async (tx) => {
+            /* Items Updated */
+            if (Array.isArray(body?.items?.itemsUpdated)) {
+                for (const itemUpdate of body.items.itemsUpdated) {
+                    /* Old Purchase Item */
+                    const oldItem = itemUpdate.old;
+
+                    /* New Purchase Item */
+                    const newItem = itemUpdate.new;
+
+                    /* Item  */
+                    const itemFromDB = await findItem(
+                        tx,
+                        oldItem.itemId,
+                        body.companyId
+                    );
+
+                    /* Getting updated stock and price history */
+                    const priceHistoryUpdateHelper =
+                        new PriceHistoryUpdateHelper(
+                            Number(itemFromDB.stock),
+                            itemFromDB.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[]
+                        );
+
+                    const newPurchasePricesForSoldItems =
+                        priceHistoryUpdateHelper.recordPurchaseUpdate(
+                            body.purchaseId,
+                            oldItem,
+                            newItem
+                        );
+
+                    /* If newPurchasePrices are passed (Adjustment for sold units from this purchase item) */
+                    if (
+                        Array.isArray(newPurchasePricesForSoldItems) &&
+                        newPurchasePricesForSoldItems.length
+                    ) {
+                        await adjustSaleItemsForRecordingPurchaseUpdate(
+                            tx,
+                            body.purchaseId,
+                            body.companyId,
+                            newPurchasePricesForSoldItems
+                        );
+                    }
+                }
+            }
+            if (Array.isArray(body?.items?.itemsRemoved)) {
+                /* For each removed item */
+                for (let item of body.items.itemsRemoved) {
+                    /* Finding the item from DB */
+                    const itemFromDB = await findItem(
+                        tx,
+                        item.itemId,
+                        body.companyId
+                    );
+
+                    const priceHistoryUpdateHelper =
+                        new PriceHistoryUpdateHelper(
+                            Number(itemFromDB.stock),
+                            itemFromDB.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[]
+                        );
+
+                    /* Getting updated stock and price history, and newPurchasePrices for any units sold from this purchaseItem */
+                    const newPurchasePricesForSoldItems =
+                        priceHistoryUpdateHelper.recordPurchaseUpdateItemDeletion(
+                            body.purchaseId,
+                            item
+                        );
+
+                    /* If newPurchasePrices for sold items is passed adjusting it in sale items */
+                    if (
+                        Array.isArray(newPurchasePricesForSoldItems) &&
+                        newPurchasePricesForSoldItems.length
+                    ) {
+                        await adjustSaleItemsForRecordingPurchaseUpdate(
+                            tx,
+                            body.purchaseId,
+                            body.companyId,
+                            newPurchasePricesForSoldItems
+                        );
+                    }
+                }
+            }
+        });
+    }
+);

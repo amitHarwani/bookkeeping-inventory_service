@@ -1,17 +1,14 @@
-import { ItemTypeForPurchasePriceHistoryUpdate } from "../../constants";
+import { ItemTypeForRecordingPurchase } from "../../constants";
 
 export class RecordPurchaseUpdateRequest {
     constructor(
         public purchaseId: number,
+        public companyId: number,
         public items: {
-            itemsAdded?: Array<ItemTypeForPurchasePriceHistoryUpdate>;
-            itemsRemoved?: Array<{
-                old: ItemTypeForPurchasePriceHistoryUpdate;
-                new: ItemTypeForPurchasePriceHistoryUpdate;
-            }>;
+            itemsRemoved?: Array<ItemTypeForRecordingPurchase>;
             itemsUpdated?: Array<{
-                old: ItemTypeForPurchasePriceHistoryUpdate;
-                new: ItemTypeForPurchasePriceHistoryUpdate;
+                old: ItemTypeForRecordingPurchase;
+                new: ItemTypeForRecordingPurchase;
             }>;
         }
     ) {}

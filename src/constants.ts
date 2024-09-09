@@ -5,7 +5,7 @@ export interface PriceHistoryOfCurrentStockType {
 }
 
 export interface CostOfItemsForSaleItemsType {
-    purchaseId?: number,
+    purchaseId?: number | null,
     units: number,
     pricePerUnit: number
 }

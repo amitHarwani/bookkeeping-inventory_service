@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { recordPurchaseValidator, recordSaleValidator } from "../validators/invoiceupdate.validators";
+import { recordPurchaseUpdateValidator, recordPurchaseValidator, recordSaleValidator } from "../validators/invoiceupdate.validators";
 import { validateInput } from "../validators";
-import { recordPurchase, recordSale } from "../controllers/invoiceupdate.controllers";
+import { recordPurchase, recordPurchaseUpdate, recordSale } from "../controllers/invoiceupdate.controllers";
 
 const router = Router();
 
@@ -14,5 +14,12 @@ router.patch(
     recordPurchase
 );
 
+
+router.patch(
+    "/record-purchase-update", 
+    recordPurchaseUpdateValidator(),
+    validateInput,
+    recordPurchaseUpdate
+)
 
 export default router;

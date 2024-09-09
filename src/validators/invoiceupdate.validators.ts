@@ -18,9 +18,9 @@ export const recordPurchaseValidator = () => {
 export const recordPurchaseUpdateValidator = () => {
     return [
         body("purchaseId").isInt().withMessage("invalid purchase id"),
+        body("companyId").isInt().withMessage("invalid company id"),
         body("items").custom((value) => {
             if (
-                Array.isArray(value?.itemsAdded) ||
                 Array.isArray(value?.itemsRemoved) ||
                 Array.isArray(value?.itemsUpdated)
             ) {
