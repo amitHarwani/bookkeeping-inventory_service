@@ -1,31 +1,29 @@
 import { items, saleItemProfits } from "db_service";
-import { db, DBType, Item } from "../db";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
-import { ApiError } from "../utils/ApiError";
-import asyncHandler from "../utils/async_handler";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { NextFunction, Request, Response } from "express";
-import {
-    RecordSaleRequest,
-    RecordSaleResponse,
-} from "../dto/invoiceupdate/record_sale_dto";
 import {
     CostOfItemsForSaleItemsType,
     ItemTypeForRecordingPurchase,
     PriceHistoryOfCurrentStockType,
     SaleItemProfitDetails,
 } from "../constants";
-import { PriceHistoryUpdateHelper } from "../utils/PriceHistoryUpdateHelper";
-import { ApiResponse } from "../utils/ApiResponse";
+import { db, DBType, Item } from "../db";
 import {
     RecordPurchaseRequest,
     RecordPurchaseResponse,
 } from "../dto/invoiceupdate/record_purchase_dto";
 import {
-    PostgresJsQueryResultHKT,
-    PostgresJsTransaction,
-} from "drizzle-orm/postgres-js";
-import { PgTransaction } from "drizzle-orm/pg-core";
-import { RecordPurchaseUpdateRequest } from "../dto/invoiceupdate/record_purchase_update_dto";
+    RecordPurchaseUpdateRequest,
+    RecordPurchaseUpdateResponse,
+} from "../dto/invoiceupdate/record_purchase_update_dto";
+import {
+    RecordSaleRequest,
+    RecordSaleResponse,
+} from "../dto/invoiceupdate/record_sale_dto";
+import { ApiError } from "../utils/ApiError";
+import { ApiResponse } from "../utils/ApiResponse";
+import asyncHandler from "../utils/async_handler";
+import { PriceHistoryUpdateHelper } from "../utils/PriceHistoryUpdateHelper";
 
 const findItem = async (
     tx: DBType,
@@ -192,7 +190,7 @@ export const adjustSaleItemsForRecordingPurchase = async (
             if (!Array.isArray(saleItem?.purchaseIds)) {
                 saleItem.purchaseIds = [];
             }
-            if(purchaseId){
+            if (purchaseId) {
                 saleItem.purchaseIds.push(purchaseId);
             }
 
@@ -483,6 +481,20 @@ export const recordPurchaseUpdate = asyncHandler(
                             newPurchasePricesForSoldItems
                         );
                     }
+                    /* Updating the item */
+                    await tx
+                        .update(items)
+                        .set({
+                            stock: priceHistoryUpdateHelper.stock.toString(),
+                            priceHistoryOfCurrentStock:
+                                priceHistoryUpdateHelper.priceHistory,
+                        })
+                        .where(
+                            and(
+                                eq(items.itemId, newItem.itemId),
+                                eq(items.companyId, body.companyId)
+                            )
+                        );
                 }
             }
             if (Array.isArray(body?.items?.itemsRemoved)) {
@@ -520,8 +532,29 @@ export const recordPurchaseUpdate = asyncHandler(
                             newPurchasePricesForSoldItems
                         );
                     }
+
+                    /* Updating the item */
+                    await tx
+                        .update(items)
+                        .set({
+                            stock: priceHistoryUpdateHelper.stock.toString(),
+                            priceHistoryOfCurrentStock:
+                                priceHistoryUpdateHelper.priceHistory,
+                        })
+                        .where(
+                            and(
+                                eq(items.itemId, item.itemId),
+                                eq(items.companyId, body.companyId)
+                            )
+                        );
                 }
             }
+
+            return res.status(200).json(
+                new ApiResponse<RecordPurchaseUpdateResponse>(200, {
+                    message: "purchase updated successfully",
+                })
+            );
         });
     }
 );
