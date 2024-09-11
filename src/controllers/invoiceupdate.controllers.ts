@@ -88,6 +88,7 @@ export const recordSale = asyncHandler(
                         stock: priceHistoryUpdateHelper.stock.toString(),
                         priceHistoryOfCurrentStock:
                             priceHistoryUpdateHelper.priceHistory,
+                        updatedAt: new Date()
                     })
                     .where(
                         and(
@@ -284,6 +285,7 @@ export const recordPurchase = asyncHandler(
                         stock: priceHistoryUpdateHelper.stock.toString(),
                         priceHistoryOfCurrentStock:
                             priceHistoryUpdateHelper.priceHistory,
+                        updatedAt: new Date()
                     })
                     .where(
                         and(
@@ -490,6 +492,7 @@ export const recordPurchaseUpdate = asyncHandler(
                             stock: priceHistoryUpdateHelper.stock.toString(),
                             priceHistoryOfCurrentStock:
                                 priceHistoryUpdateHelper.priceHistory,
+                            updatedAt: new Date()
                         })
                         .where(
                             and(
@@ -542,6 +545,7 @@ export const recordPurchaseUpdate = asyncHandler(
                             stock: priceHistoryUpdateHelper.stock.toString(),
                             priceHistoryOfCurrentStock:
                                 priceHistoryUpdateHelper.priceHistory,
+                            updatedAt: new Date()
                         })
                         .where(
                             and(
@@ -645,6 +649,7 @@ export const recordSaleUpdate = asyncHandler(
                             stock: priceHistoryUpdateHelper.stock.toString(),
                             priceHistoryOfCurrentStock:
                                 priceHistoryUpdateHelper.priceHistory,
+                            updatedAt: new Date()
                         })
                         .where(
                             and(
@@ -748,6 +753,7 @@ export const recordSaleUpdate = asyncHandler(
                             stock: priceHistoryUpdateHelper.stock.toString(),
                             priceHistoryOfCurrentStock:
                                 priceHistoryUpdateHelper.priceHistory,
+                            updatedAt: new Date()
                         })
                         .where(
                             and(
