@@ -12,7 +12,7 @@ import {
     sql,
 } from "drizzle-orm";
 import { NextFunction, Request, Response } from "express";
-import { ADJUSTMENT_TYPES } from "../constants";
+import { ADJUSTMENT_TYPES, ItemTypeForRecordingPurchase } from "../constants";
 import { db } from "../db";
 import { AddItemRequest, AddItemResponse } from "../dto/item/add_item_dto";
 import {
@@ -308,56 +308,72 @@ export const adjustItem = asyncHandler(
 
         /* Updated item object */
         let updatedItem = { ...itemsFound[0] };
-
-        /* Add type */
-        if (body.adjustmentType === ADJUSTMENT_TYPES.ADD) {
-            /* Adding stock, converting to string as numeric types are returned as string from DB */
-            updatedItem.stock = (
-                Number(updatedItem.stock) + body.stockAdjusted
-            ).toString();
-
-            /* If priceHistoryOfCurrentStock is present */
-            if (updatedItem.priceHistoryOfCurrentStock) {
-                /* Push to the price history the current added stock along with the price per unit */
-                updatedItem.priceHistoryOfCurrentStock.push({
-                    stock: body.stockAdjusted,
-                    purchasePrice: body.pricePerUnit,
-                });
-            } else {
-                /* Else store single element in priceHistoryOfStock */
-                updatedItem.priceHistoryOfCurrentStock = [
-                    {
-                        stock: body.stockAdjusted,
-                        purchasePrice: body.pricePerUnit,
-                    },
-                ];
-            }
-        } else {
-            /* If current available stock is less than the stock being subtracted */
-            if (Number(updatedItem.stock) - body.stockAdjusted < 0) {
-                throw new ApiError(
-                    409,
-                    "current stock is less than subtracted stock",
-                    []
-                );
-            }
-
-            /* Updating stock */
-            updatedItem.stock = (
-                Number(updatedItem.stock) - body.stockAdjusted
-            ).toString();
-
-            /* If price history of current stock exists, adjust and remove elements to subtract the stock */
-            if (updatedItem.priceHistoryOfCurrentStock) {
-                updatedItem.priceHistoryOfCurrentStock =
-                    subtractPriceHistoryOfCurrentStock(
-                        updatedItem.priceHistoryOfCurrentStock,
-                        body.stockAdjusted
-                    );
-            }
-        }
-
         await db.transaction(async (tx) => {
+
+            /* Add type */
+            if (body.adjustmentType === ADJUSTMENT_TYPES.ADD) {
+
+                /* Object for adjusting sale items (As Adding stock is like a purchase) */
+                const adjustSaleItemPurchaseObj: ItemTypeForRecordingPurchase = {
+                    itemId: body.itemId,
+                    pricePerUnit: body.pricePerUnit as number,
+                    unitsPurchased: body.stockAdjusted
+                }
+                await adjustSaleItemsForRecordingPurchase(
+                    tx,
+                    body.companyId,
+                    adjustSaleItemPurchaseObj,
+                    null
+                );
+
+                /* Adding stock, converting to string as numeric types are returned as string from DB */
+                updatedItem.stock = (
+                    Number(updatedItem.stock) + body.stockAdjusted
+                ).toString();
+
+                /* If priceHistoryOfCurrentStock is present */
+                if (updatedItem.priceHistoryOfCurrentStock) {
+                    /* Push to the price history the current added stock along with the price per unit */
+                    updatedItem.priceHistoryOfCurrentStock.push({
+                        stock: adjustSaleItemPurchaseObj.unitsPurchased,
+                        purchasePrice: adjustSaleItemPurchaseObj.pricePerUnit,
+                        purchaseId: null
+                    });
+                } else {
+                    /* Else store single element in priceHistoryOfStock */
+                    updatedItem.priceHistoryOfCurrentStock = [
+                        {
+                            stock: adjustSaleItemPurchaseObj.unitsPurchased,
+                            purchasePrice: adjustSaleItemPurchaseObj.pricePerUnit,
+                            purchaseId: null
+                        },
+                    ];
+                }
+            } else {
+                /* If current available stock is less than the stock being subtracted */
+                if (Number(updatedItem.stock) - body.stockAdjusted < 0) {
+                    throw new ApiError(
+                        409,
+                        "current stock is less than subtracted stock",
+                        []
+                    );
+                }
+
+                /* Updating stock */
+                updatedItem.stock = (
+                    Number(updatedItem.stock) - body.stockAdjusted
+                ).toString();
+
+                /* If price history of current stock exists, adjust and remove elements to subtract the stock */
+                if (updatedItem.priceHistoryOfCurrentStock) {
+                    updatedItem.priceHistoryOfCurrentStock =
+                        subtractPriceHistoryOfCurrentStock(
+                            updatedItem.priceHistoryOfCurrentStock,
+                            body.stockAdjusted
+                        );
+                }
+            }
+
             /* Inserting into itemAdjustments */
             await tx.insert(itemAdjustments).values({
                 companyId: body.companyId,
@@ -372,18 +388,6 @@ export const adjustItem = asyncHandler(
             });
 
             /* Adjusting sale items (Calculating their profits and adding to costOfItems if pending) */
-            if (body.adjustmentType === ADJUSTMENT_TYPES.ADD) {
-                await adjustSaleItemsForRecordingPurchase(
-                    tx,
-                    body.companyId,
-                    {
-                        itemId: body.itemId,
-                        pricePerUnit: body.pricePerUnit as number,
-                        unitsPurchased: body.stockAdjusted,
-                    },
-                    null
-                );
-            }
 
             /* Updating the item in DB */
             const updatedItemInDB = await tx

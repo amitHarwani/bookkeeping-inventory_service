@@ -1,7 +1,7 @@
 export interface PriceHistoryOfCurrentStockType {
     stock: number;
     purchasePrice: number;
-    purchaseId?: number;
+    purchaseId?: number | null;
 }
 
 export interface CostOfItemsForSaleItemsType {

@@ -1,4 +1,5 @@
 import {
+    CostOfItemsForSaleItemsType,
     ItemTypeForRecordingPurchase,
     ItemTypeForRecordingSale,
     PriceHistoryOfCurrentStockType,
@@ -96,7 +97,7 @@ export class PriceHistoryUpdateHelper {
     };
 
     recordPurchase = (
-        purchaseId: number,
+        purchaseId: number | null,
         item: ItemTypeForRecordingPurchase,
         unitsPurchasedBeforeSaleAdjustment: number
     ) => {
@@ -212,6 +213,15 @@ export class PriceHistoryUpdateHelper {
                 stock: newItem.unitsPurchased,
                 purchaseId: purchaseId,
             };
+
+            /* If price is changed, passing in the new purchase price, this will be adjusted in saleItems table */
+            if(purchaseHistory.purchasePrice != newItem.pricePerUnit){
+                newPurchasePricesForSoldItems.push({
+                    purchaseId: purchaseId, 
+                    units: newItem.unitsPurchased,
+                    pricePerUnit: newItem.pricePerUnit
+                })
+            }
         }
 
         /* Overall Stock = Current Overall - old Purchased Stock + new Purchase Stock */

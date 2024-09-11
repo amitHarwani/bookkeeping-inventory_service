@@ -4,20 +4,36 @@ export const recordSaleValidator = () => {
     return [
         body("saleId").isInt().withMessage("invalid sale id"),
         body("companyId").isInt().withMessage("invalid company id"),
-        body("items").isArray().withMessage("invalid items field")
-    ]
-}
+        body("items").isArray().withMessage("invalid items field"),
+    ];
+};
 export const recordPurchaseValidator = () => {
     return [
         body("purchaseId").isInt().withMessage("invalid purchase id"),
         body("companyId").isInt().withMessage("invalid company id"),
-        body("items").isArray().withMessage("invalid items field")
+        body("items").isArray().withMessage("invalid items field"),
     ];
 };
 
 export const recordPurchaseUpdateValidator = () => {
     return [
         body("purchaseId").isInt().withMessage("invalid purchase id"),
+        body("companyId").isInt().withMessage("invalid company id"),
+        body("items").custom((value) => {
+            if (
+                Array.isArray(value?.itemsRemoved) ||
+                Array.isArray(value?.itemsUpdated)
+            ) {
+                return true;
+            }
+            throw new Error("invalid field items");
+        }),
+    ];
+};
+
+export const recordSaleUpdateValidator = () => {
+    return [
+        body("saleId").isInt().withMessage("invalid sale id"),
         body("companyId").isInt().withMessage("invalid company id"),
         body("items").custom((value) => {
             if (

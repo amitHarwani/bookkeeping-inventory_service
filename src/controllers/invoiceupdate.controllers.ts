@@ -24,6 +24,7 @@ import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import asyncHandler from "../utils/async_handler";
 import { PriceHistoryUpdateHelper } from "../utils/PriceHistoryUpdateHelper";
+import { RecordSaleUpdateRequest } from "../dto/invoiceupdate/record_sale_update_dto";
 
 const findItem = async (
     tx: DBType,
@@ -348,7 +349,9 @@ const adjustSaleItemsForRecordingPurchaseUpdate = async (
             }
 
             /* Counter to adjust from newPurchasePrices */
-            let counter = costPurchaseObj.units;
+            let counter =
+                costPurchaseObj.units +
+                Number(saleItem.remainingUnitsForProfitCalc);
 
             /* Looping to adjust the units from the purchaseId */
             while (counter > 0 && newPurchasePricesForSoldItems.length) {
@@ -395,8 +398,7 @@ const adjustSaleItemsForRecordingPurchaseUpdate = async (
             saleItem.costOfItems = costOfItems;
 
             /* Remaining Units = Old Remaining Units + counter (units left if any while adjusting the purchase) */
-            const updatedRemainingUnitsForProfitCalc =
-                Number(saleItem.remainingUnitsForProfitCalc) + counter;
+            const updatedRemainingUnitsForProfitCalc = counter;
 
             /* If no units are remaining for profit calc: Calculate total profit */
             if (updatedRemainingUnitsForProfitCalc == 0) {
@@ -555,6 +557,218 @@ export const recordPurchaseUpdate = asyncHandler(
                     message: "purchase updated successfully",
                 })
             );
+        });
+    }
+);
+
+export const recordSaleUpdate = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const body = req.body as RecordSaleUpdateRequest;
+
+        await db.transaction(async (tx) => {
+            /* Item Updates */
+            if (Array.isArray(body?.items?.itemsUpdated)) {
+                for (const itemUpdate of body.items.itemsUpdated) {
+                    /* Old and new Item */
+                    const oldItem = itemUpdate.old;
+                    const newItem = itemUpdate.new;
+
+                    /* Item from inventory table */
+                    const itemFromDB = await findItem(
+                        tx,
+                        newItem.itemId,
+                        body.companyId
+                    );
+
+                    /* Sale Item form DB */
+                    const saleItemProfitFromDB = await tx
+                        .select()
+                        .from(saleItemProfits)
+                        .where(
+                            and(
+                                eq(saleItemProfits.itemId, newItem.itemId),
+                                eq(saleItemProfits.saleId, body.saleId),
+                                eq(saleItemProfits.companyId, body.companyId)
+                            )
+                        );
+
+                    const saleItemProfitDetails = saleItemProfitFromDB[0];
+
+                    /* Price History Update Helper object */
+                    const priceHistoryUpdateHelper =
+                        new PriceHistoryUpdateHelper(
+                            Number(itemFromDB.stock),
+                            itemFromDB.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[]
+                        );
+
+                    /* Adding the costOfItems back to inventory  */
+                    if (
+                        saleItemProfitDetails &&
+                        Array.isArray(saleItemProfitDetails.costOfItems)
+                    ) {
+                        for (let costOfItem of saleItemProfitDetails.costOfItems) {
+                            /* Cost of sale item object */
+                            let costOfSaleItem =
+                                costOfItem as CostOfItemsForSaleItemsType;
+
+                            /* Record Purchase Object type */
+                            const recordPurchaseObj = {
+                                itemId: newItem.itemId,
+                                pricePerUnit: costOfSaleItem.pricePerUnit,
+                                unitsPurchased: costOfSaleItem.units,
+                            };
+
+                            /* Adjusting sale items if any of them are pending for profit calculation */
+                            await adjustSaleItemsForRecordingPurchase(
+                                tx,
+                                body.companyId,
+                                recordPurchaseObj,
+                                costOfSaleItem.purchaseId as number | null
+                            );
+
+                            /* Record purchase in inventory after adjustment */
+                            priceHistoryUpdateHelper.recordPurchase(
+                                costOfSaleItem.purchaseId as number | null,
+                                recordPurchaseObj,
+                                costOfSaleItem.units
+                            );
+                        }
+                    }
+
+                    /* Getting details to record the new sale item  */
+                    const saleTransactionDetails =
+                        priceHistoryUpdateHelper.recordSales(newItem);
+
+                    /* Updating item in DB */
+                    await tx
+                        .update(items)
+                        .set({
+                            stock: priceHistoryUpdateHelper.stock.toString(),
+                            priceHistoryOfCurrentStock:
+                                priceHistoryUpdateHelper.priceHistory,
+                        })
+                        .where(
+                            and(
+                                eq(items.itemId, newItem.itemId),
+                                eq(items.companyId, body.companyId)
+                            )
+                        );
+
+                    /* Updating in saleItemProfits */
+                    await tx
+                        .update(saleItemProfits)
+                        .set({
+                            costOfItems: saleTransactionDetails.costOfItems,
+                            purchaseIds: saleTransactionDetails.purchaseIds,
+                            pricePerUnit:
+                                newItem.sellingPricePerUnit.toString(),
+                            unitsSold: newItem.unitsSold.toString(),
+                            remainingUnitsForProfitCalc:
+                                saleTransactionDetails.remainingUnitsForProfitCalc.toString(),
+                            totalProfit: saleTransactionDetails.profit
+                                ? saleTransactionDetails.profit.toString()
+                                : null,
+                        })
+                        .where(
+                            and(
+                                eq(saleItemProfits.itemId, newItem.itemId),
+                                eq(saleItemProfits.saleId, body.saleId),
+                                eq(saleItemProfits.companyId, body.companyId)
+                            )
+                        );
+                }
+            }
+            if (Array.isArray(body?.items?.itemsRemoved)) {
+                for (const item of body.items.itemsRemoved) {
+                    /* Item from inventory table */
+                    const itemFromDB = await findItem(
+                        tx,
+                        item.itemId,
+                        body.companyId
+                    );
+
+                    /* Sale Item form DB */
+                    const saleItemProfitFromDB = await tx
+                        .select()
+                        .from(saleItemProfits)
+                        .where(
+                            and(
+                                eq(saleItemProfits.itemId, item.itemId),
+                                eq(saleItemProfits.saleId, body.saleId),
+                                eq(saleItemProfits.companyId, body.companyId)
+                            )
+                        );
+
+                    const saleItemProfitDetails = saleItemProfitFromDB[0];
+
+                    /* Price History Update Helper object */
+                    const priceHistoryUpdateHelper =
+                        new PriceHistoryUpdateHelper(
+                            Number(itemFromDB.stock),
+                            itemFromDB.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[]
+                        );
+
+                    /* Adding the costOfItems back to inventory  */
+                    if (
+                        saleItemProfitDetails &&
+                        Array.isArray(saleItemProfitDetails.costOfItems)
+                    ) {
+                        for (let costOfItem of saleItemProfitDetails.costOfItems) {
+                            /* Cost of sale item object */
+                            let costOfSaleItem =
+                                costOfItem as CostOfItemsForSaleItemsType;
+
+                            /* Record Purchase Object type */
+                            const recordPurchaseObj = {
+                                itemId: item.itemId,
+                                pricePerUnit: costOfSaleItem.pricePerUnit,
+                                unitsPurchased: costOfSaleItem.units,
+                            };
+
+                            /* Adjusting sale items if any of them are pending for profit calculation */
+                            await adjustSaleItemsForRecordingPurchase(
+                                tx,
+                                body.companyId,
+                                recordPurchaseObj,
+                                costOfSaleItem.purchaseId as number | null
+                            );
+
+                            /* Record purchase in inventory after adjustment */
+                            priceHistoryUpdateHelper.recordPurchase(
+                                costOfSaleItem.purchaseId as number | null,
+                                recordPurchaseObj,
+                                costOfSaleItem.units
+                            );
+                        }
+                    }
+
+                    /* Updating item in DB */
+                    await tx
+                        .update(items)
+                        .set({
+                            stock: priceHistoryUpdateHelper.stock.toString(),
+                            priceHistoryOfCurrentStock:
+                                priceHistoryUpdateHelper.priceHistory,
+                        })
+                        .where(
+                            and(
+                                eq(items.itemId, item.itemId),
+                                eq(items.companyId, body.companyId)
+                            )
+                        );
+
+                    /* Deleting from saleItemProfits */
+                    await tx
+                        .delete(saleItemProfits)
+                        .where(
+                            and(
+                                eq(saleItemProfits.itemId, item.itemId),
+                                eq(saleItemProfits.saleId, body.saleId),
+                                eq(saleItemProfits.companyId, body.companyId)
+                            )
+                        );
+                }
+            }
         });
     }
 );
