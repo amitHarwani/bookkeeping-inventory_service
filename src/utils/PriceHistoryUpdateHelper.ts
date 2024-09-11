@@ -306,4 +306,39 @@ export class PriceHistoryUpdateHelper {
 
         return newPurchasePricesForSoldItems;
     };
+
+    addSoldUnitsBackToInventory = (
+        purchaseId: number | null,
+        item: ItemTypeForRecordingPurchase,
+    ) => {
+        /* Adding to overall stock */
+        this.stock += item.unitsPurchased;
+
+        /* If priceHistory is not a array initializing it to an empty array */
+        if (!Array.isArray(this.priceHistory)) {
+            this.priceHistory = [];
+        }
+
+        /* If stock is not negative */
+        if (this.stock > 0) {
+
+            /* If purchaseId is passed */
+            if(purchaseId){
+                /* Finding the price history with the same purchaseId */
+                const purchaseHistoryIndex = this.priceHistory.findIndex((history) => history.purchaseId == purchaseId);
+                
+                /* If found add stock to the price history and return */
+                if(purchaseHistoryIndex != -1){
+                    this.priceHistory[purchaseHistoryIndex].stock += item.unitsPurchased;
+                    return;
+                }
+            }
+            /* Else pushing to price history */
+            this.priceHistory.push({
+                purchasePrice: item.pricePerUnit,
+                stock: item.unitsPurchased,
+                purchaseId: purchaseId,
+            });
+        }
+    };
 }

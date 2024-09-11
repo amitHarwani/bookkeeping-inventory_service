@@ -627,10 +627,9 @@ export const recordSaleUpdate = asyncHandler(
                             );
 
                             /* Record purchase in inventory after adjustment */
-                            priceHistoryUpdateHelper.recordPurchase(
+                            priceHistoryUpdateHelper.addSoldUnitsBackToInventory(
                                 costOfSaleItem.purchaseId as number | null,
                                 recordPurchaseObj,
-                                costOfSaleItem.units
                             );
                         }
                     }
