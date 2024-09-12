@@ -155,8 +155,12 @@ export class PriceHistoryUpdateHelper {
             const currentPurchaseHistoryStock = purchaseHistory?.stock || 0;
 
             /* Num of units sold or adjusted */
-            const numOfUnitsSoldOrAdjusted =
+            let numOfUnitsSoldOrAdjusted =
                 oldItem.unitsPurchased - currentPurchaseHistoryStock;
+
+            if(this.stock < 0){
+                numOfUnitsSoldOrAdjusted = Math.abs(this.stock) + oldItem.unitsPurchased;
+            }
 
             /* Updating old purchase history */
             if (purchaseHistoryIndex != -1) {
@@ -311,8 +315,6 @@ export class PriceHistoryUpdateHelper {
         purchaseId: number | null,
         item: ItemTypeForRecordingPurchase,
     ) => {
-        /* Adding to overall stock */
-        this.stock += item.unitsPurchased;
 
         /* If priceHistory is not a array initializing it to an empty array */
         if (!Array.isArray(this.priceHistory)) {

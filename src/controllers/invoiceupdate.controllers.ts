@@ -1,5 +1,5 @@
 import { items, saleItemProfits } from "db_service";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, not, notInArray, sql } from "drizzle-orm";
 import { NextFunction, Request, Response } from "express";
 import {
     CostOfItemsForSaleItemsType,
@@ -24,7 +24,11 @@ import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import asyncHandler from "../utils/async_handler";
 import { PriceHistoryUpdateHelper } from "../utils/PriceHistoryUpdateHelper";
-import { RecordSaleUpdateRequest } from "../dto/invoiceupdate/record_sale_update_dto";
+import {
+    RecordSaleUpdateRequest,
+    RecordSaleUpdateResponse,
+} from "../dto/invoiceupdate/record_sale_update_dto";
+import logger from "../utils/logger";
 
 const findItem = async (
     tx: DBType,
@@ -88,7 +92,7 @@ export const recordSale = asyncHandler(
                         stock: priceHistoryUpdateHelper.stock.toString(),
                         priceHistoryOfCurrentStock:
                             priceHistoryUpdateHelper.priceHistory,
-                        updatedAt: new Date()
+                        updatedAt: new Date(),
                     })
                     .where(
                         and(
@@ -141,7 +145,8 @@ export const adjustSaleItemsForRecordingPurchase = async (
     tx: DBType,
     companyId: number,
     purchaseItem: ItemTypeForRecordingPurchase,
-    purchaseId: number | null
+    purchaseId: number | null,
+    extraWhereClause?: any
 ) => {
     try {
         /* Finding sale items where totalProfit is null, to adjust them with the new purchase */
@@ -152,7 +157,8 @@ export const adjustSaleItemsForRecordingPurchase = async (
                 and(
                     eq(saleItemProfits.itemId, purchaseItem.itemId),
                     eq(saleItemProfits.companyId, companyId),
-                    isNull(saleItemProfits.totalProfit)
+                    isNull(saleItemProfits.totalProfit),
+                    extraWhereClause
                 )
             );
 
@@ -285,7 +291,7 @@ export const recordPurchase = asyncHandler(
                         stock: priceHistoryUpdateHelper.stock.toString(),
                         priceHistoryOfCurrentStock:
                             priceHistoryUpdateHelper.priceHistory,
-                        updatedAt: new Date()
+                        updatedAt: new Date(),
                     })
                     .where(
                         and(
@@ -308,6 +314,7 @@ const adjustSaleItemsForRecordingPurchaseUpdate = async (
     tx: DBType,
     purchaseId: number,
     companyId: number,
+    itemId: number,
     newPurchasePricesForSoldItems: Array<{
         purchaseId: number | null;
         units: number;
@@ -322,7 +329,8 @@ const adjustSaleItemsForRecordingPurchaseUpdate = async (
             .where(
                 and(
                     sql`${purchaseId} = ANY(${saleItemProfits.purchaseIds})`,
-                    eq(saleItemProfits.companyId, companyId)
+                    eq(saleItemProfits.companyId, companyId),
+                    eq(saleItemProfits.itemId, itemId)
                 )
             );
 
@@ -342,11 +350,15 @@ const adjustSaleItemsForRecordingPurchaseUpdate = async (
             /* Removing the purchaseObject from costOfItems */
             costOfItems.splice(costPurchaseIndex, 1);
 
+            if(!Array.isArray(saleItem.purchaseIds)){
+                saleItem.purchaseIds = []
+            }
             /* Removing the purchaseId from purchaseIds list */
-            const purchaseIdIndex = saleItem.purchaseIds?.findIndex(
+            const purchaseIdIndex = saleItem.purchaseIds.findIndex(
                 (id) => id == purchaseId
             );
-            if (purchaseIdIndex && purchaseIdIndex != -1) {
+
+            if (purchaseIdIndex != -1) {
                 saleItem.purchaseIds?.splice(purchaseIdIndex, 1);
             }
 
@@ -482,6 +494,7 @@ export const recordPurchaseUpdate = asyncHandler(
                             tx,
                             body.purchaseId,
                             body.companyId,
+                            newItem.itemId,
                             newPurchasePricesForSoldItems
                         );
                     }
@@ -492,7 +505,7 @@ export const recordPurchaseUpdate = asyncHandler(
                             stock: priceHistoryUpdateHelper.stock.toString(),
                             priceHistoryOfCurrentStock:
                                 priceHistoryUpdateHelper.priceHistory,
-                            updatedAt: new Date()
+                            updatedAt: new Date(),
                         })
                         .where(
                             and(
@@ -534,6 +547,7 @@ export const recordPurchaseUpdate = asyncHandler(
                             tx,
                             body.purchaseId,
                             body.companyId,
+                            item.itemId,
                             newPurchasePricesForSoldItems
                         );
                     }
@@ -545,7 +559,7 @@ export const recordPurchaseUpdate = asyncHandler(
                             stock: priceHistoryUpdateHelper.stock.toString(),
                             priceHistoryOfCurrentStock:
                                 priceHistoryUpdateHelper.priceHistory,
-                            updatedAt: new Date()
+                            updatedAt: new Date(),
                         })
                         .where(
                             and(
@@ -569,6 +583,7 @@ export const recordSaleUpdate = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const body = req.body as RecordSaleUpdateRequest;
 
+        logger.info(`Record Sale Update, requestBody: ${JSON.stringify(body)}`);
         await db.transaction(async (tx) => {
             /* Item Updates */
             if (Array.isArray(body?.items?.itemsUpdated)) {
@@ -610,6 +625,9 @@ export const recordSaleUpdate = asyncHandler(
                         saleItemProfitDetails &&
                         Array.isArray(saleItemProfitDetails.costOfItems)
                     ) {
+                        /* Adding to overall stock */
+                        priceHistoryUpdateHelper.stock += Number(saleItemProfitDetails.unitsSold);
+
                         for (let costOfItem of saleItemProfitDetails.costOfItems) {
                             /* Cost of sale item object */
                             let costOfSaleItem =
@@ -627,13 +645,14 @@ export const recordSaleUpdate = asyncHandler(
                                 tx,
                                 body.companyId,
                                 recordPurchaseObj,
-                                costOfSaleItem.purchaseId as number | null
+                                costOfSaleItem.purchaseId as number | null,
+                                not(eq(saleItemProfits.saleId, body.saleId))
                             );
 
                             /* Record purchase in inventory after adjustment */
                             priceHistoryUpdateHelper.addSoldUnitsBackToInventory(
                                 costOfSaleItem.purchaseId as number | null,
-                                recordPurchaseObj,
+                                recordPurchaseObj
                             );
                         }
                     }
@@ -649,7 +668,7 @@ export const recordSaleUpdate = asyncHandler(
                             stock: priceHistoryUpdateHelper.stock.toString(),
                             priceHistoryOfCurrentStock:
                                 priceHistoryUpdateHelper.priceHistory,
-                            updatedAt: new Date()
+                            updatedAt: new Date(),
                         })
                         .where(
                             and(
@@ -753,7 +772,7 @@ export const recordSaleUpdate = asyncHandler(
                             stock: priceHistoryUpdateHelper.stock.toString(),
                             priceHistoryOfCurrentStock:
                                 priceHistoryUpdateHelper.priceHistory,
-                            updatedAt: new Date()
+                            updatedAt: new Date(),
                         })
                         .where(
                             and(
@@ -774,6 +793,12 @@ export const recordSaleUpdate = asyncHandler(
                         );
                 }
             }
+
+            return res.status(200).json(
+                new ApiResponse<RecordSaleUpdateResponse>(200, {
+                    message: "sale updated successfully in inventory",
+                })
+            );
         });
     }
 );
