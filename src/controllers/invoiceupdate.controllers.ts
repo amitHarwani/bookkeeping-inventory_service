@@ -583,7 +583,6 @@ export const recordSaleUpdate = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
         const body = req.body as RecordSaleUpdateRequest;
 
-        logger.info(`Record Sale Update, requestBody: ${JSON.stringify(body)}`);
         await db.transaction(async (tx) => {
             /* Item Updates */
             if (Array.isArray(body?.items?.itemsUpdated)) {
