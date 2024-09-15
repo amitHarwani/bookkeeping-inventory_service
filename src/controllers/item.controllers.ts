@@ -209,8 +209,8 @@ export const addItem = asyncHandler(
                     ? body.defaultPurchasePrice.toString()
                     : null,
                 minStockToMaintain: body?.minStockToMaintain
-                    ? body.minStockToMaintain
-                    : 0,
+                    ? body.minStockToMaintain.toString()
+                    : "0",
                 isActive: body.isActive,
                 stock: body.stock.toString(),
                 priceHistoryOfCurrentStock: body?.priceHistoryOfCurrentStock
@@ -269,8 +269,8 @@ export const updateItem = asyncHandler(
                     ? body.defaultPurchasePrice.toString()
                     : null,
                 minStockToMaintain: body?.minStockToMaintain
-                    ? body.minStockToMaintain
-                    : 0,
+                    ? body.minStockToMaintain.toString()
+                    : "0",
                 isActive: body.isActive,
                 updatedAt: new Date(),
             })

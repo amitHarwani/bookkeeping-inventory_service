@@ -4,7 +4,7 @@ import {
     adjustItem,
     getAllItems,
     getItem,
-    updateItem
+    updateItem,
 } from "../controllers/item.controllers";
 import { checkAccess } from "../middlewares/auth.middleware";
 import { validateInput } from "../validators";
@@ -13,7 +13,7 @@ import {
     adjustItemValidator,
     getAllItemsValidator,
     getItemValidator,
-    updateItemValidator
+    updateItemValidator,
 } from "../validators/item.validators";
 
 const router = Router();

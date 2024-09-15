@@ -42,6 +42,9 @@ import InvoiceUpdatesRouter from "./routes/invoiceupdate.routes";
 
 app.use("/invoice-update", InvoiceUpdatesRouter);
 
+import InsightsRouter from "./routes/insights.routes";
+app.use("/insights", InsightsRouter);
+
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     logger.error(JSON.stringify(err));
