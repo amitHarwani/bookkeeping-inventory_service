@@ -16,6 +16,8 @@ export class GetLowStockItemsResponse {
             stock: string;
             minStockToMaintain: string | null;
             difference: string;
+            updatedAt: Date | null;
+            unitName: string
         }>,
         public nextPageCursor?: {
             itemId: number;

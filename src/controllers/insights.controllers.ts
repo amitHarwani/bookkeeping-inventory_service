@@ -42,12 +42,14 @@ export const getLowStockItems = asyncHandler(
                 minStockToMaintain: items.minStockToMaintain,
                 difference:
                     sql`${items.minStockToMaintain} - ${items.stock}` as SQL<string>,
+                unitName: items.unitName,
+                updatedAt: items.updatedAt
             })
             .from(items)
             .where(whereClause)
             .orderBy(
-                asc(items.itemId),
-                desc(sql`${items.minStockToMaintain} - ${items.stock}`)
+                desc(sql`${items.minStockToMaintain} - ${items.stock}`),
+                asc(items.itemId)
             )
             .limit(body.pageSize);
 
