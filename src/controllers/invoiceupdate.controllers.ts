@@ -735,6 +735,9 @@ export const recordSaleUpdate = asyncHandler(
                         saleItemProfitDetails &&
                         Array.isArray(saleItemProfitDetails.costOfItems)
                     ) {
+                        /* Adding to overall stock */
+                        priceHistoryUpdateHelper.stock += Number(saleItemProfitDetails.unitsSold);
+
                         for (let costOfItem of saleItemProfitDetails.costOfItems) {
                             /* Cost of sale item object */
                             let costOfSaleItem =
@@ -756,10 +759,9 @@ export const recordSaleUpdate = asyncHandler(
                             );
 
                             /* Record purchase in inventory after adjustment */
-                            priceHistoryUpdateHelper.recordPurchase(
+                            priceHistoryUpdateHelper.addSoldUnitsBackToInventory(
                                 costOfSaleItem.purchaseId as number | null,
-                                recordPurchaseObj,
-                                costOfSaleItem.units
+                                recordPurchaseObj
                             );
                         }
                     }
