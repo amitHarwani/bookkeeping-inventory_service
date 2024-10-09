@@ -22,9 +22,9 @@ export const getAllTransfersValidator = () => {
                 (typeof value === "object" &&
                     (typeof value?.type === "string" ||
                         (typeof value?.fromDate &&
-                            REGEX.date.test(value?.fromDate) &&
+                            REGEX.dateWithTime.test(value?.fromDate) &&
                             typeof value?.toDate &&
-                            REGEX.date.test(value?.toDate))))
+                            REGEX.dateWithTime.test(value?.toDate))))
             ) {
                 return true;
             }

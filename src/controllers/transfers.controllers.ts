@@ -21,7 +21,8 @@ import { db } from "../db";
 import { ApiResponse } from "../utils/ApiResponse";
 import { GetTransferResponse } from "../dto/transfers/get_transfer_dto";
 import { AddTransferRequest } from "../dto/transfers/add_transfer_dto";
-import { PriceHistoryOfCurrentStockType } from "../constants";
+import { DATE_TIME_FORMATS, PriceHistoryOfCurrentStockType } from "../constants";
+import moment from "moment";
 
 export const getAllTransfers = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {
@@ -31,11 +32,17 @@ export const getAllTransfers = asyncHandler(
         let customQuery;
 
         if (body?.query) {
-            let typeQuery;
+            let typeQuery = or(
+                eq(transfersTable.fromCompanyId, body.companyId),
+                eq(transfersTable.toCompanyId, body.companyId)
+            );
             let dateQuery;
 
             /* Type Query */
-            if (["ALL", "RECEIVED", "SENT"].includes(body?.query?.type)) {
+            if (
+                body?.query?.type &&
+                ["ALL", "RECEIVED", "SENT"].includes(body?.query?.type)
+            ) {
                 /* Transfers which were received  */
                 if (body.query.type === "RECEIVED") {
                     typeQuery = eq(transfersTable.toCompanyId, body.companyId);
@@ -45,17 +52,15 @@ export const getAllTransfers = asyncHandler(
                         transfersTable.fromCompanyId,
                         body.companyId
                     );
-                } else {
-                    /* All Transfers */
-                    typeQuery = or(
-                        eq(transfersTable.fromCompanyId, body.companyId),
-                        eq(transfersTable.toCompanyId, body.companyId)
-                    );
                 }
             }
             /* Date query */
             if (body?.query?.fromDate && body?.query?.toDate) {
-                dateQuery = sql`${transfersTable.createdAt} >= ${body.query.fromDate} and ${transfersTable.createdAt} <= ${body.query.toDate}`;
+                dateQuery = between(
+                    transfersTable.createdAt,
+                    moment.utc(body.query.fromDate, DATE_TIME_FORMATS.dateTimeFormat24hr).toDate(),
+                    moment.utc(body.query.toDate, DATE_TIME_FORMATS.dateTimeFormat24hr).toDate(),
+                )                
             }
             customQuery = and(typeQuery, dateQuery);
         }
@@ -191,7 +196,6 @@ export const addTransfer = asyncHandler(
         const body = req.body as AddTransferRequest;
 
         await db.transaction(async (tx) => {
-
             /* Adding transfer to transfers table */
             const transferAdded = await tx
                 .insert(transfersTable)
@@ -230,7 +234,7 @@ export const addTransfer = asyncHandler(
                             )
                         )
                     );
-                
+
                 /* If the item is not found in senders list of items, throw an error */
                 if (!itemInDB.length) {
                     throw new ApiError(
@@ -275,7 +279,6 @@ export const addTransfer = asyncHandler(
                     /* If the first price history is greater than counter: 
                     All units can be transferred from this price history */
                     if (priceHistoryOfSender[0].stock > counter) {
-
                         /* Pushing to receiver and transfer price history */
                         priceHistoryOfReceiver.push({
                             stock: counter,
@@ -296,7 +299,6 @@ export const addTransfer = asyncHandler(
                         counter = 0;
                         break;
                     } else {
-
                         /* Else, emptying the first price histor in sender */
 
                         /* Pushing in receivers and transfers price history */

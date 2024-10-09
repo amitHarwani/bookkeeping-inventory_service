@@ -9,7 +9,7 @@ export class GetAllTransfersRequest {
             createdAt: Date;
         },
         public query?: {
-            type: "ALL" | "RECEIVED" | "SENT";
+            type?: "ALL" | "RECEIVED" | "SENT";
             fromDate?: string;
             toDate?: string;
         },
