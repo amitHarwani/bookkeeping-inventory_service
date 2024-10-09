@@ -88,7 +88,7 @@ export const getAllItems = asyncHandler(
                 customQuery
             );
         } else {
-            whereClause = customQuery;
+            whereClause = and(customQuery, eq(items.companyId, body.companyId));
         }
 
         /* Default columns to select */

@@ -17,10 +17,10 @@ import {
 } from "drizzle-orm";
 import { transfers as transfersTable, transferItems, items } from "db_service";
 import { ApiError } from "../utils/ApiError";
-import { db } from "../db";
+import { db, TransferItem } from "../db";
 import { ApiResponse } from "../utils/ApiResponse";
 import { GetTransferResponse } from "../dto/transfers/get_transfer_dto";
-import { AddTransferRequest } from "../dto/transfers/add_transfer_dto";
+import { AddTransferRequest, AddTransferResponse } from "../dto/transfers/add_transfer_dto";
 import { DATE_TIME_FORMATS, PriceHistoryOfCurrentStockType } from "../constants";
 import moment from "moment";
 
@@ -208,6 +208,7 @@ export const addTransfer = asyncHandler(
                 })
                 .returning();
 
+            let itemsTransferred: Array<TransferItem> = [];
             /* For each transferred item */
             for (let item of body.items) {
                 /* Item From Items Table (Sender) */
@@ -229,7 +230,7 @@ export const addTransfer = asyncHandler(
                         and(
                             eq(items.companyId, body.toCompanyId),
                             eq(
-                                sql`lower${items.itemName}`,
+                                sql`lower(${items.itemName})`,
                                 item.itemName.toLowerCase()
                             )
                         )
@@ -360,7 +361,7 @@ export const addTransfer = asyncHandler(
                 }
 
                 /* Inserting into transfer items table */
-                await tx.insert(transferItems).values({
+                const transferItemAdded = await tx.insert(transferItems).values({
                     itemId: item.itemId,
                     itemName: item.itemName,
                     transferId: transferAdded[0].transferId,
@@ -368,8 +369,17 @@ export const addTransfer = asyncHandler(
                     unitName: item.unitName,
                     unitsTransferred: item.unitsTransferred.toString(),
                     priceHistoryOfStockTransferred: priceHistoryOfTransfer,
-                });
+                }).returning();
+
+                itemsTransferred.push(transferItemAdded[0]);
             }
+
+            
+            return res.status(200).json(new ApiResponse<AddTransferResponse>(200, {
+                transfer: transferAdded[0],
+                transferItems: itemsTransferred,
+                message: "items transferred successfully"
+            }))
         });
     }
 );
