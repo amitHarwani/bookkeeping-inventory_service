@@ -540,8 +540,8 @@ export const recordPurchaseUpdate = asyncHandler(
 
                     /* If newPurchasePrices for sold items is passed adjusting it in sale items */
                     if (
-                        Array.isArray(newPurchasePricesForSoldItems) &&
-                        newPurchasePricesForSoldItems.length
+                        (Array.isArray(newPurchasePricesForSoldItems) &&
+                        newPurchasePricesForSoldItems.length) || priceHistoryUpdateHelper.stock < 0
                     ) {
                         await adjustSaleItemsForRecordingPurchaseUpdate(
                             tx,
