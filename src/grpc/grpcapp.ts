@@ -1,34 +1,83 @@
+import { sendUnaryData, Server, ServerUnaryCall } from "@grpc/grpc-js";
+import {
+    InventoryServiceServer,
+    InventoryServiceService,
+    ItemTypeForRecordingSale,
+    MessageResponse,
+    RecordPurchaseRequest,
+    RecordPurchaseUpdateRequest,
+    RecordSaleRequest,
+    RecordSaleUpdateRequest,
+} from "./proto/inventory_service";
+
 import { items, saleItemProfits } from "db_service";
-import { and, eq, isNull, not, notInArray, sql } from "drizzle-orm";
-import { NextFunction, Request, Response } from "express";
+import { and, eq, isNull, not, sql } from "drizzle-orm";
 import {
     CostOfItemsForSaleItemsType,
-    ItemTypeForRecordingPurchase,
     PriceHistoryOfCurrentStockType,
     SaleItemProfitDetails,
 } from "../constants";
 import { db, DBType, Item } from "../db";
-import {
-    RecordPurchaseRequest,
-    RecordPurchaseResponse,
-} from "../dto/invoiceupdate/record_purchase_dto";
-import {
-    RecordPurchaseUpdateRequest,
-    RecordPurchaseUpdateResponse,
-} from "../dto/invoiceupdate/record_purchase_update_dto";
-import {
-    RecordSaleRequest,
-    RecordSaleResponse,
-} from "../dto/invoiceupdate/record_sale_dto";
 import { ApiError } from "../utils/ApiError";
-import { ApiResponse } from "../utils/ApiResponse";
-import asyncHandler from "../utils/async_handler";
 import { PriceHistoryUpdateHelper } from "../utils/PriceHistoryUpdateHelper";
-import {
-    RecordSaleUpdateRequest,
-    RecordSaleUpdateResponse,
-} from "../dto/invoiceupdate/record_sale_update_dto";
-import logger from "../utils/logger";
+import { ItemTypeForRecordingPurchase } from "./proto/inventory_service";
+
+/* GRPC Server */
+const server = new Server();
+
+/* GRPC Functions Implementations */
+const inventoryServiceImplementation: InventoryServiceServer = {
+    recordSale: function (
+        call: ServerUnaryCall<RecordSaleRequest, MessageResponse>,
+        callback: sendUnaryData<MessageResponse>
+    ): void {
+        recordSale(call.request)
+            .then(() => {
+                callback(null, { message: "sales recorded successfully" });
+            })
+            .catch((error) => {
+                callback(error);
+            });
+    },
+    recordPurchase: function (
+        call: ServerUnaryCall<RecordPurchaseRequest, MessageResponse>,
+        callback: sendUnaryData<MessageResponse>
+    ): void {
+        recordPurchase(call.request)
+            .then(() => {
+                callback(null, { message: "items stock updated successfully" });
+            })
+            .catch((error) => {
+                callback(error);
+            });
+    },
+    recordSaleUpdate: function (
+        call: ServerUnaryCall<RecordSaleUpdateRequest, MessageResponse>,
+        callback: sendUnaryData<MessageResponse>
+    ): void {
+        recordSaleUpdate(call.request)
+            .then(() =>
+                callback(null, {
+                    message: "sale updated successfully in inventory",
+                })
+            )
+            .catch((error) => {
+                callback(error);
+            });
+    },
+    recordPurchaseUpdate: function (
+        call: ServerUnaryCall<RecordPurchaseUpdateRequest, MessageResponse>,
+        callback: sendUnaryData<MessageResponse>
+    ): void {
+        recordPurchaseUpdate(call.request)
+            .then(() =>
+                callback(null, { message: "purchase updated successfully" })
+            )
+            .catch((error) => {
+                callback(error);
+            });
+    },
+};
 
 const findItem = async (
     tx: DBType,
@@ -53,10 +102,8 @@ const findItem = async (
         throw error;
     }
 };
-export const recordSale = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
-        const body = req.body as RecordSaleRequest;
-
+export const recordSale = async (body: RecordSaleRequest) => {
+    try {
         /* To store sale item profit details as object where itemId is key, and profit details is the object */
         let allSaleItemProfitDetails: {
             [itemId: number]: SaleItemProfitDetails;
@@ -118,14 +165,12 @@ export const recordSale = asyncHandler(
                 });
             }
 
-            return res.status(200).json(
-                new ApiResponse<RecordSaleResponse>(200, {
-                    message: "sales recorded successfully",
-                })
-            );
+            return true;
         });
+    } catch (error) {
+        throw error;
     }
-);
+};
 
 const calculateSaleItemProfit = (
     costOfItems: Array<CostOfItemsForSaleItemsType>,
@@ -246,10 +291,8 @@ export const adjustSaleItemsForRecordingPurchase = async (
     }
 };
 
-export const recordPurchase = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
-        const body = req.body as RecordPurchaseRequest;
-
+export const recordPurchase = async (body: RecordPurchaseRequest) => {
+    try {
         await db.transaction(async (tx) => {
             /* For each purchaseItem */
             for (let purchaseItem of body.items) {
@@ -301,14 +344,12 @@ export const recordPurchase = asyncHandler(
                     );
             }
 
-            return res.status(200).json(
-                new ApiResponse<RecordPurchaseResponse>(200, {
-                    message: "items stock updated successfully",
-                })
-            );
+            return true;
         });
+    } catch (error) {
+        throw error;
     }
-);
+};
 
 const adjustSaleItemsForRecordingPurchaseUpdate = async (
     tx: DBType,
@@ -350,8 +391,8 @@ const adjustSaleItemsForRecordingPurchaseUpdate = async (
             /* Removing the purchaseObject from costOfItems */
             costOfItems.splice(costPurchaseIndex, 1);
 
-            if(!Array.isArray(saleItem.purchaseIds)){
-                saleItem.purchaseIds = []
+            if (!Array.isArray(saleItem.purchaseIds)) {
+                saleItem.purchaseIds = [];
             }
             /* Removing the purchaseId from purchaseIds list */
             const purchaseIdIndex = saleItem.purchaseIds.findIndex(
@@ -450,146 +491,15 @@ const adjustSaleItemsForRecordingPurchaseUpdate = async (
     }
 };
 
-export const recordPurchaseUpdate = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
-        const body = req.body as RecordPurchaseUpdateRequest;
-
-        await db.transaction(async (tx) => {
-            /* Items Updated */
-            if (Array.isArray(body?.items?.itemsUpdated)) {
-                for (const itemUpdate of body.items.itemsUpdated) {
-                    /* Old Purchase Item */
-                    const oldItem = itemUpdate.old;
-
-                    /* New Purchase Item */
-                    const newItem = itemUpdate.new;
-
-                    /* Item  */
-                    const itemFromDB = await findItem(
-                        tx,
-                        oldItem.itemId,
-                        body.companyId
-                    );
-
-                    /* Getting updated stock and price history */
-                    const priceHistoryUpdateHelper =
-                        new PriceHistoryUpdateHelper(
-                            Number(itemFromDB.stock),
-                            itemFromDB.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[]
-                        );
-
-                    const newPurchasePricesForSoldItems =
-                        priceHistoryUpdateHelper.recordPurchaseUpdate(
-                            body.purchaseId,
-                            oldItem,
-                            newItem
-                        );
-
-                    /* If newPurchasePrices are passed (Adjustment for sold units from this purchase item) */
-                    if (
-                        Array.isArray(newPurchasePricesForSoldItems) &&
-                        newPurchasePricesForSoldItems.length
-                    ) {
-                        await adjustSaleItemsForRecordingPurchaseUpdate(
-                            tx,
-                            body.purchaseId,
-                            body.companyId,
-                            newItem.itemId,
-                            newPurchasePricesForSoldItems
-                        );
-                    }
-                    /* Updating the item */
-                    await tx
-                        .update(items)
-                        .set({
-                            stock: priceHistoryUpdateHelper.stock.toString(),
-                            priceHistoryOfCurrentStock:
-                                priceHistoryUpdateHelper.priceHistory,
-                            updatedAt: new Date(),
-                        })
-                        .where(
-                            and(
-                                eq(items.itemId, newItem.itemId),
-                                eq(items.companyId, body.companyId)
-                            )
-                        );
-                }
-            }
-            if (Array.isArray(body?.items?.itemsRemoved)) {
-                /* For each removed item */
-                for (let item of body.items.itemsRemoved) {
-                    /* Finding the item from DB */
-                    const itemFromDB = await findItem(
-                        tx,
-                        item.itemId,
-                        body.companyId
-                    );
-
-                    const priceHistoryUpdateHelper =
-                        new PriceHistoryUpdateHelper(
-                            Number(itemFromDB.stock),
-                            itemFromDB.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[]
-                        );
-
-                    /* Getting updated stock and price history, and newPurchasePrices for any units sold from this purchaseItem */
-                    const newPurchasePricesForSoldItems =
-                        priceHistoryUpdateHelper.recordPurchaseUpdateItemDeletion(
-                            body.purchaseId,
-                            item
-                        );
-
-                    /* If newPurchasePrices for sold items is passed adjusting it in sale items */
-                    if (
-                        (Array.isArray(newPurchasePricesForSoldItems) &&
-                        newPurchasePricesForSoldItems.length) || priceHistoryUpdateHelper.stock < 0
-                    ) {
-                        await adjustSaleItemsForRecordingPurchaseUpdate(
-                            tx,
-                            body.purchaseId,
-                            body.companyId,
-                            item.itemId,
-                            newPurchasePricesForSoldItems
-                        );
-                    }
-
-                    /* Updating the item */
-                    await tx
-                        .update(items)
-                        .set({
-                            stock: priceHistoryUpdateHelper.stock.toString(),
-                            priceHistoryOfCurrentStock:
-                                priceHistoryUpdateHelper.priceHistory,
-                            updatedAt: new Date(),
-                        })
-                        .where(
-                            and(
-                                eq(items.itemId, item.itemId),
-                                eq(items.companyId, body.companyId)
-                            )
-                        );
-                }
-            }
-
-            return res.status(200).json(
-                new ApiResponse<RecordPurchaseUpdateResponse>(200, {
-                    message: "purchase updated successfully",
-                })
-            );
-        });
-    }
-);
-
-export const recordSaleUpdate = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
-        const body = req.body as RecordSaleUpdateRequest;
-
+export const recordSaleUpdate = async (body: RecordSaleUpdateRequest) => {
+    try {
         await db.transaction(async (tx) => {
             /* Item Updates */
             if (Array.isArray(body?.items?.itemsUpdated)) {
                 for (const itemUpdate of body.items.itemsUpdated) {
                     /* Old and new Item */
                     const oldItem = itemUpdate.old;
-                    const newItem = itemUpdate.new;
+                    const newItem = itemUpdate.new as ItemTypeForRecordingSale;
 
                     /* Item from inventory table */
                     const itemFromDB = await findItem(
@@ -625,7 +535,9 @@ export const recordSaleUpdate = asyncHandler(
                         Array.isArray(saleItemProfitDetails.costOfItems)
                     ) {
                         /* Adding to overall stock */
-                        priceHistoryUpdateHelper.stock += Number(saleItemProfitDetails.unitsSold);
+                        priceHistoryUpdateHelper.stock += Number(
+                            saleItemProfitDetails.unitsSold
+                        );
 
                         for (let costOfItem of saleItemProfitDetails.costOfItems) {
                             /* Cost of sale item object */
@@ -736,7 +648,9 @@ export const recordSaleUpdate = asyncHandler(
                         Array.isArray(saleItemProfitDetails.costOfItems)
                     ) {
                         /* Adding to overall stock */
-                        priceHistoryUpdateHelper.stock += Number(saleItemProfitDetails.unitsSold);
+                        priceHistoryUpdateHelper.stock += Number(
+                            saleItemProfitDetails.unitsSold
+                        );
 
                         for (let costOfItem of saleItemProfitDetails.costOfItems) {
                             /* Cost of sale item object */
@@ -795,11 +709,144 @@ export const recordSaleUpdate = asyncHandler(
                 }
             }
 
-            return res.status(200).json(
-                new ApiResponse<RecordSaleUpdateResponse>(200, {
-                    message: "sale updated successfully in inventory",
-                })
-            );
+            return true;
         });
+    } catch (error) {
+        throw error;
     }
-);
+};
+
+export const recordPurchaseUpdate = async (
+    body: RecordPurchaseUpdateRequest
+) => {
+    try {
+        await db.transaction(async (tx) => {
+            /* Items Updated */
+            if (Array.isArray(body?.items?.itemsUpdated)) {
+                for (const itemUpdate of body.items.itemsUpdated) {
+                    /* Old Purchase Item */
+                    const oldItem =
+                        itemUpdate.old as ItemTypeForRecordingPurchase;
+
+                    /* New Purchase Item */
+                    const newItem =
+                        itemUpdate.new as ItemTypeForRecordingPurchase;
+
+                    /* Item  */
+                    const itemFromDB = await findItem(
+                        tx,
+                        oldItem.itemId,
+                        body.companyId
+                    );
+
+                    /* Getting updated stock and price history */
+                    const priceHistoryUpdateHelper =
+                        new PriceHistoryUpdateHelper(
+                            Number(itemFromDB.stock),
+                            itemFromDB.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[]
+                        );
+
+                    const newPurchasePricesForSoldItems =
+                        priceHistoryUpdateHelper.recordPurchaseUpdate(
+                            body.purchaseId,
+                            oldItem,
+                            newItem
+                        );
+
+                    /* If newPurchasePrices are passed (Adjustment for sold units from this purchase item) */
+                    if (
+                        Array.isArray(newPurchasePricesForSoldItems) &&
+                        newPurchasePricesForSoldItems.length
+                    ) {
+                        await adjustSaleItemsForRecordingPurchaseUpdate(
+                            tx,
+                            body.purchaseId,
+                            body.companyId,
+                            newItem.itemId,
+                            newPurchasePricesForSoldItems
+                        );
+                    }
+                    /* Updating the item */
+                    await tx
+                        .update(items)
+                        .set({
+                            stock: priceHistoryUpdateHelper.stock.toString(),
+                            priceHistoryOfCurrentStock:
+                                priceHistoryUpdateHelper.priceHistory,
+                            updatedAt: new Date(),
+                        })
+                        .where(
+                            and(
+                                eq(items.itemId, newItem.itemId),
+                                eq(items.companyId, body.companyId)
+                            )
+                        );
+                }
+            }
+            if (Array.isArray(body?.items?.itemsRemoved)) {
+                /* For each removed item */
+                for (let item of body.items.itemsRemoved) {
+                    /* Finding the item from DB */
+                    const itemFromDB = await findItem(
+                        tx,
+                        item.itemId,
+                        body.companyId
+                    );
+
+                    const priceHistoryUpdateHelper =
+                        new PriceHistoryUpdateHelper(
+                            Number(itemFromDB.stock),
+                            itemFromDB.priceHistoryOfCurrentStock as PriceHistoryOfCurrentStockType[]
+                        );
+
+                    /* Getting updated stock and price history, and newPurchasePrices for any units sold from this purchaseItem */
+                    const newPurchasePricesForSoldItems =
+                        priceHistoryUpdateHelper.recordPurchaseUpdateItemDeletion(
+                            body.purchaseId,
+                            item
+                        );
+
+                    /* If newPurchasePrices for sold items is passed adjusting it in sale items */
+                    if (
+                        (Array.isArray(newPurchasePricesForSoldItems) &&
+                            newPurchasePricesForSoldItems.length) ||
+                        priceHistoryUpdateHelper.stock < 0
+                    ) {
+                        await adjustSaleItemsForRecordingPurchaseUpdate(
+                            tx,
+                            body.purchaseId,
+                            body.companyId,
+                            item.itemId,
+                            newPurchasePricesForSoldItems
+                        );
+                    }
+
+                    /* Updating the item */
+                    await tx
+                        .update(items)
+                        .set({
+                            stock: priceHistoryUpdateHelper.stock.toString(),
+                            priceHistoryOfCurrentStock:
+                                priceHistoryUpdateHelper.priceHistory,
+                            updatedAt: new Date(),
+                        })
+                        .where(
+                            and(
+                                eq(items.itemId, item.itemId),
+                                eq(items.companyId, body.companyId)
+                            )
+                        );
+                }
+            }
+
+            return true;
+        });
+    } catch (error) {
+        throw error;
+    }
+};
+
+/* Adding service */
+server.addService(InventoryServiceService, inventoryServiceImplementation);
+
+export default server;

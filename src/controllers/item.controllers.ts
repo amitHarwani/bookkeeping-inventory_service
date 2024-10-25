@@ -12,7 +12,8 @@ import {
     sql,
 } from "drizzle-orm";
 import { NextFunction, Request, Response } from "express";
-import { ADJUSTMENT_TYPES, ItemTypeForRecordingPurchase } from "../constants";
+import { ADJUSTMENT_TYPES } from "../constants";
+import { ItemTypeForRecordingPurchase } from "../grpc/proto/inventory_service";
 import { db } from "../db";
 import { AddItemRequest, AddItemResponse } from "../dto/item/add_item_dto";
 import {
@@ -32,7 +33,7 @@ import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import asyncHandler from "../utils/async_handler";
 import { subtractPriceHistoryOfCurrentStock } from "../utils/item.helpers";
-import { adjustSaleItemsForRecordingPurchase } from "./invoiceupdate.controllers";
+import { adjustSaleItemsForRecordingPurchase } from "../grpc/grpcapp";
 
 export const getAllItems = asyncHandler(
     async (req: Request, res: Response, next: NextFunction) => {

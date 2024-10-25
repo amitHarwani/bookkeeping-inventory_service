@@ -38,9 +38,6 @@ import UnitRouter from "./routes/unit.routes";
 
 app.use("/unit", UnitRouter);
 
-import InvoiceUpdatesRouter from "./routes/invoiceupdate.routes";
-
-app.use("/invoice-update", InvoiceUpdatesRouter);
 
 import InsightsRouter from "./routes/insights.routes";
 app.use("/insights", InsightsRouter);

@@ -10,17 +10,6 @@ export interface CostOfItemsForSaleItemsType {
     pricePerUnit: number
 }
 
-export interface ItemTypeForRecordingPurchase {
-    itemId: number;
-    unitsPurchased: number;
-    pricePerUnit: number;
-}
-
-export interface ItemTypeForRecordingSale {
-    unitsSold: number;
-    sellingPricePerUnit: number;
-    itemId: number;
-}
 
 export interface SaleItemProfitDetails {
     costOfItems: {

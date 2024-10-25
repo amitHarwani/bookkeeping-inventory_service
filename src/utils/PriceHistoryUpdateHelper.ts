@@ -1,10 +1,10 @@
 import {
     CostOfItemsForSaleItemsType,
-    ItemTypeForRecordingPurchase,
-    ItemTypeForRecordingSale,
     PriceHistoryOfCurrentStockType,
     SaleItemProfitDetails,
 } from "../constants";
+
+import { ItemTypeForRecordingPurchase, ItemTypeForRecordingSale } from "../grpc/proto/inventory_service";
 
 export class PriceHistoryUpdateHelper {
     constructor(
