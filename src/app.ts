@@ -32,18 +32,18 @@ app.use(express.urlencoded({ extended: true }));
 /* Routes */
 import ItemRouter from "./routes/item.routes";
 
-app.use("/item", ItemRouter);
+app.use("/inventory/item", ItemRouter);
 
 import UnitRouter from "./routes/unit.routes";
 
-app.use("/unit", UnitRouter);
+app.use("/inventory/unit", UnitRouter);
 
 
 import InsightsRouter from "./routes/insights.routes";
-app.use("/insights", InsightsRouter);
+app.use("/inventory/insights", InsightsRouter);
 
 import TransfersRouter from "./routes/transfers.routes";
-app.use("/transfers", TransfersRouter);
+app.use("/inventory/transfers", TransfersRouter);
 
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
