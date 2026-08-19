@@ -18,3 +18,4 @@ export type Unit = InferSelectModel<typeof schema.units>;
 export type Transfer = InferSelectModel<typeof schema.transfers>
 export type TransferItem = InferSelectModel<typeof schema.transferItems>
 export type DBType = typeof db;
+export type DBTransaction = Parameters<Parameters<DBType["transaction"]>[0]>[0];
