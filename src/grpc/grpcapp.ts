@@ -17,7 +17,7 @@ import {
     PriceHistoryOfCurrentStockType,
     SaleItemProfitDetails,
 } from "../constants";
-import { db, DBType, Item } from "../db";
+import { db, DBTransaction, Item } from "../db";
 import { ApiError } from "../utils/ApiError";
 import { PriceHistoryUpdateHelper } from "../utils/PriceHistoryUpdateHelper";
 import { ItemTypeForRecordingPurchase } from "./proto/inventory_service";
@@ -80,7 +80,7 @@ const inventoryServiceImplementation: InventoryServiceServer = {
 };
 
 const findItem = async (
-    tx: DBType,
+    tx: DBTransaction,
     itemId: number,
     companyId: number
 ): Promise<Item> => {
@@ -187,7 +187,7 @@ const calculateSaleItemProfit = (
 };
 
 export const adjustSaleItemsForRecordingPurchase = async (
-    tx: DBType,
+    tx: DBTransaction,
     companyId: number,
     purchaseItem: ItemTypeForRecordingPurchase,
     purchaseId: number | null,
@@ -352,7 +352,7 @@ export const recordPurchase = async (body: RecordPurchaseRequest) => {
 };
 
 const adjustSaleItemsForRecordingPurchaseUpdate = async (
-    tx: DBType,
+    tx: DBTransaction,
     purchaseId: number,
     companyId: number,
     itemId: number,
